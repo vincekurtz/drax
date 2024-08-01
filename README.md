@@ -1,9 +1,7 @@
-# Drax
-
-A python library for direct trajectory optimization on accelerators using JAX.
+# Drax: direct trajectory optimization on GPU via JAX.
 
 Drax solves optimal control problems of the form
-$$
+```math
 \begin{align}
 \min_{x, u} & \sum_{t=0}^{T-1} \ell(x_t, u_t) + \phi(x_T) \\
 \mathrm{s.t.}~& x_{t+1} = f(x_t, u_t) \\
@@ -12,9 +10,9 @@ $$
               & u_{min} \leq u_t \leq u_{max} \\
               & x_0 = x_{\mathrm{init}}
 \end{align}
-$$
+```
 on GPU or other accelerator hardware. $x_t$ is the system state, $u_t$ is a
-control input, $f$ are the system dynamics, and $g$ are extra constrains, e.g.
+control input, $f$ are the system dynamics, and $g$ are extra constraints, e.g.
 for collision avoidance. The functions $\ell$ and $\phi$ are running and
 terminal costs.
 
@@ -28,9 +26,9 @@ the following emphasis:
 - **GPU friendly operations**. Hardware accelerators are good at large matrix 
   multiplications like (e.g., $y = Ax$), but not so good at matrix inversions
   and linear solves (e.g., $x = A^{-1}y$). This makes standard non-convex 
-  optimization methods like SQP less attractive.
+  optimization methods like SQP less attractive on GPU.
 - **Support for sampling-based approximations**. The dynamics gradients 
-  ($\nabla_x f, \nabla_u f$) are often poorly defined or difficult to compute,
+  ($\nabla_x f, \nabla_u f$) are often poorly defined or difficult to compute.
   Drax supports gradient-free optimization via randomized smoothing.
 
 ## Setup (Conda)
