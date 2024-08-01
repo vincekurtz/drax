@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Tuple
 
+import jax
 import jax.numpy as jnp
 
 from drax.nlp import NonlinearProgram
@@ -56,6 +57,7 @@ class OptimalControlProblem(NonlinearProgram, ABC):
 
         # Total number of decision variables (state and control variables).
         # Note that the initial state x₀ is fixed and not a decision variable.
+        # TODO: support inequality constraints via slack variables
         num_vars = (nx + nu) * (horizon - 1)
 
         # Tile the bounds to cover all decision variables.
@@ -69,21 +71,21 @@ class OptimalControlProblem(NonlinearProgram, ABC):
         super().__init__(num_vars, lower, upper)
 
     @abstractmethod
-    def f(self, x: jnp.ndarray, u: jnp.ndarray) -> jnp.ndarray:
-        """The state transition function.
+    def dynamics(self, x: jnp.ndarray, u: jnp.ndarray) -> jnp.ndarray:
+        """The state transition function xₜ₊₁ = f(xₜ, uₜ).
 
         Args:
             x: The state variables.
             u: The control variables.
 
         Returns:
-            The next state xₜ₊₁ = f(xₜ, uₜ).
+            The next state xₜ₊₁.
         """
         raise NotImplementedError
 
     @abstractmethod
-    def g(self, x: jnp.ndarray, u: jnp.ndarray) -> jnp.ndarray:
-        """The inequality constraints.
+    def constraints(self, x: jnp.ndarray, u: jnp.ndarray) -> jnp.ndarray:
+        """The inequality constraints g(x, u) <= 0.
 
         Args:
             x: The state variables.
@@ -91,6 +93,31 @@ class OptimalControlProblem(NonlinearProgram, ABC):
 
         Returns:
             A vector of inequality constraint values g(x, u).
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def running_cost(self, x: jnp.ndarray, u: jnp.ndarray) -> jnp.ndarray:
+        """The running cost ℓ(x, u).
+
+        Args:
+            x: The state variables.
+            u: The control variables.
+
+        Returns:
+            The (scalar) running cost ℓ(x, u).
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def terminal_cost(self, x: jnp.ndarray) -> jnp.ndarray:
+        """The terminal cost ϕ(x).
+
+        Args:
+            x: The state variables.
+
+        Returns:
+            The (scalar) terminal cost ϕ(x).
         """
         raise NotImplementedError
 
@@ -119,4 +146,25 @@ class OptimalControlProblem(NonlinearProgram, ABC):
         Returns:
             The (scalar) cost.
         """
-        X, U = self._unflatten(vars)
+        xs, us = self._unflatten(vars)
+        running = jax.vmap(self.running_cost(xs[:-1], us))
+        terminal = self.terminal_cost(xs[-1])
+        return jnp.sum(running) + terminal
+
+    def residual(self, vars: jnp.ndarray) -> jnp.ndarray:
+        """Stacked equality constraints from dynamics and other constraints.
+
+        Args:
+            vars: vector of states and controls at each time step
+
+        Returns:
+            A vector of equality constraint residuals.
+        """
+        xs, us = self._unflatten(vars)
+
+        x_pred = jax.vmap(self.dynamics)(xs[:-1], us)
+        x_next = xs[1:]
+        dynamics_residual = (x_pred - x_next).flatten()
+
+        # TODO: support inequality constraints via slack variables
+        return dynamics_residual
