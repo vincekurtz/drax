@@ -26,6 +26,21 @@ def test_ocp() -> None:
     g = prob.constraints(x, u)
     assert g.shape == (0,)
 
+    # Generic NLP methods
+    assert prob.nx == 2
+    assert prob.nu == 1
+    assert prob.num_vars == 27  # (horizon - 1) * 3
+
+    vars = jnp.zeros(prob.num_vars) + 1.23
+
+    cost = prob.objective(vars)
+    assert cost.shape == ()
+    assert cost > 0.0
+
+    res = prob.residual(vars)
+    assert res.shape == (2 * 9,)  # 2 * (horizon - 1)
+    assert jnp.all(res != 0.0)
+
 
 if __name__ == "__main__":
     test_ocp()

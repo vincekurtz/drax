@@ -16,17 +16,17 @@ class NonlinearProgram(ABC):
     to this form by introducing slack variables.
     """
 
-    def __init__(self, nx: int, lower: jnp.ndarray, upper: jnp.ndarray):
+    def __init__(self, num_vars: int, lower: jnp.ndarray, upper: jnp.ndarray):
         """Initialize the nonlinear program.
 
         Args:
-            nx: The number of decision variables.
+            num_vars: The number of decision variables.
             lower: The lower bounds on the decision variables.
             upper: The upper bounds on the decision variables.
         """
-        assert lower.shape == (nx,)
-        assert upper.shape == (nx,)
-        self.nx = nx
+        assert lower.shape == (num_vars,)
+        assert upper.shape == (num_vars,)
+        self.num_vars = num_vars
         self.lower = lower
         self.upper = upper
 

@@ -54,6 +54,7 @@ class OptimalControlProblem(NonlinearProgram, ABC):
         self.nx = nx
         self.nu = nu
         self.x_init = x_init
+        self.horizon = horizon
 
         # Total number of decision variables (state and control variables).
         # Note that the initial state x₀ is fixed and not a decision variable.
@@ -147,7 +148,7 @@ class OptimalControlProblem(NonlinearProgram, ABC):
             The (scalar) cost.
         """
         xs, us = self._unflatten(vars)
-        running = jax.vmap(self.running_cost(xs[:-1], us))
+        running = jax.vmap(self.running_cost)(xs[:-1], us)
         terminal = self.terminal_cost(xs[-1])
         return jnp.sum(running) + terminal
 
