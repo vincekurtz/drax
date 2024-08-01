@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Tuple
 
 import jax.numpy as jnp
 
@@ -29,6 +30,7 @@ class OptimalControlProblem(NonlinearProgram, ABC):
         nx: int,
         nu: int,
         horizon: int,
+        x_init: jnp.ndarray,
     ):
         """Initialize the optimal control problem.
 
@@ -40,13 +42,17 @@ class OptimalControlProblem(NonlinearProgram, ABC):
             nx: The number of state variables.
             nu: The number of control variables.
             horizon: The number of time steps T.
+            x_init: The initial state x₀.
         """
         assert x_min.shape == (nx,)
         assert x_max.shape == (nx,)
         assert u_min.shape == (nu,)
         assert u_max.shape == (nu,)
+        assert x_init.shape == (nx,)
+
         self.nx = nx
         self.nu = nu
+        self.x_init = x_init
 
         # Total number of decision variables (state and control variables).
         # Note that the initial state x₀ is fixed and not a decision variable.
@@ -87,3 +93,30 @@ class OptimalControlProblem(NonlinearProgram, ABC):
             A vector of inequality constraint values g(x, u).
         """
         raise NotImplementedError
+
+    def _unflatten(self, vars: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+        """Reshape the decision variables into states and controls.
+
+        Args:
+            vars: vector of states and controls at each time step
+
+        Returns:
+            An array of states [x₀, x₁, ... x_T], size (horizon, nz)
+            An array of controls [u₀, u₁, ..., u_T-1], size (horizon - 1, nu)
+        """
+        nx_vars = self.nx * (self.horizon - 1)
+        states = vars[:nx_vars].reshape(self.horizon - 1, self.nx)
+        controls = vars[nx_vars:].reshape(self.horizon - 1, self.nu)
+        states = jnp.vstack([self.x_init, states])
+        return states, controls
+
+    def objective(self, vars: jnp.ndarray) -> jnp.ndarray:
+        """The total cost ∑ₜ ℓ(xₜ, uₜ) + ϕ(x_T).
+
+        Args:
+            vars: vector of states and controls at each time step
+
+        Returns:
+            The (scalar) cost.
+        """
+        X, U = self._unflatten(vars)
