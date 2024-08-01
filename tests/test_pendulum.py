@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 
 from drax.nlp import NonlinearProgram
 from drax.ocp import OptimalControlProblem
+from drax.solver import solve
 from drax.systems.pendulum import PendulumSwingup
 
 
@@ -51,6 +52,22 @@ def test_plot() -> None:
         plt.show()
 
 
+def test_solve() -> None:
+    """Make sure we can solve the pendulum swingup problem."""
+    prob = PendulumSwingup(horizon=50, x_init=jnp.array([3.1, 0.0]))
+    guess = jnp.zeros(prob.num_vars)
+
+    sol = solve(prob, guess)
+    assert sol.shape == (prob.num_vars,)
+
+    xs, us = prob._unflatten(sol)
+    prob.plot_scenario()
+    if __name__ == "__main__":
+        plt.plot(xs[:, 0], xs[:, 1], "ro-")
+        plt.show()
+
+
 if __name__ == "__main__":
     test_ocp()
     test_plot()
+    test_solve()
