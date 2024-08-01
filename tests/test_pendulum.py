@@ -63,7 +63,7 @@ def test_solve() -> None:
     sol = solve(prob, guess)
     assert sol.shape == (prob.num_vars,)
 
-    xs, us = prob._unflatten(sol)
+    xs, us = prob.unflatten(sol)
     if __name__ == "__main__":
         plt.subplot(2, 1, 1)
         prob.plot_scenario()
@@ -76,6 +76,6 @@ def test_solve() -> None:
 
 
 if __name__ == "__main__":
-    # test_ocp()
-    # test_plot()
+    test_ocp()
+    test_plot()
     test_solve()

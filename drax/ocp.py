@@ -122,7 +122,7 @@ class OptimalControlProblem(NonlinearProgram, ABC):
         """
         raise NotImplementedError
 
-    def _unflatten(self, vars: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    def unflatten(self, vars: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
         """Reshape the decision variables into states and controls.
 
         Args:
@@ -147,7 +147,7 @@ class OptimalControlProblem(NonlinearProgram, ABC):
         Returns:
             The (scalar) cost.
         """
-        xs, us = self._unflatten(vars)
+        xs, us = self.unflatten(vars)
         running = jax.vmap(self.running_cost)(xs[:-1], us)
         terminal = self.terminal_cost(xs[-1])
         return jnp.sum(running) + terminal
@@ -161,7 +161,7 @@ class OptimalControlProblem(NonlinearProgram, ABC):
         Returns:
             A vector of equality constraint residuals.
         """
-        xs, us = self._unflatten(vars)
+        xs, us = self.unflatten(vars)
 
         x_pred = jax.vmap(self.dynamics)(xs[:-1], us)
         x_next = xs[1:]
