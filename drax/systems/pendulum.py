@@ -41,7 +41,7 @@ class PendulumSwingup(OptimalControlProblem):
 
     def running_cost(self, x: jnp.ndarray, u: jnp.ndarray) -> jnp.ndarray:
         """The running cost ℓ(xₜ, uₜ)."""
-        return self.dt * jnp.sum(u**2)
+        return self.dt * 0.01 * jnp.sum(u**2)
 
     def terminal_cost(self, x: jnp.ndarray) -> jnp.ndarray:
         """The terminal cost ϕ(x_T)."""

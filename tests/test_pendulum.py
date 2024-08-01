@@ -1,3 +1,4 @@
+import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
@@ -55,19 +56,26 @@ def test_plot() -> None:
 def test_solve() -> None:
     """Make sure we can solve the pendulum swingup problem."""
     prob = PendulumSwingup(horizon=50, x_init=jnp.array([3.1, 0.0]))
-    guess = jnp.zeros(prob.num_vars)
+
+    rng = jax.random.key(0)
+    guess = jax.random.uniform(rng, (prob.num_vars,), minval=-5.0, maxval=5.0)
 
     sol = solve(prob, guess)
     assert sol.shape == (prob.num_vars,)
 
     xs, us = prob._unflatten(sol)
-    prob.plot_scenario()
     if __name__ == "__main__":
+        plt.subplot(2, 1, 1)
+        prob.plot_scenario()
         plt.plot(xs[:, 0], xs[:, 1], "ro-")
+
+        plt.subplot(2, 1, 2)
+        plt.plot(us, "bo-")
+
         plt.show()
 
 
 if __name__ == "__main__":
-    test_ocp()
-    test_plot()
+    # test_ocp()
+    # test_plot()
     test_solve()
