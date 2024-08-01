@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 
 from drax.nlp import NonlinearProgram
 from drax.ocp import OptimalControlProblem
@@ -42,5 +43,14 @@ def test_ocp() -> None:
     assert jnp.all(res != 0.0)
 
 
+def test_plot() -> None:
+    """Make sure we can plot the pendulum scenario."""
+    prob = PendulumSwingup(horizon=10, x_init=jnp.array([0.0, 0.0]))
+    prob.plot_scenario()
+    if __name__ == "__main__":
+        plt.show()
+
+
 if __name__ == "__main__":
     test_ocp()
+    test_plot()

@@ -1,4 +1,6 @@
+import jax
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 
 from drax.ocp import OptimalControlProblem
 
@@ -49,3 +51,21 @@ class PendulumSwingup(OptimalControlProblem):
     def constraints(self, x: jnp.ndarray, u: jnp.ndarray) -> jnp.ndarray:
         """Additional constraints g(xₜ, uₜ) ≤ 0."""
         return jnp.zeros(0)  # there are no constraints, return an empty array
+
+    def plot_scenario(self) -> None:
+        """Make a vector field plot on the current matplotlib axes."""
+        theta_range = (-1.5 * jnp.pi, 1.5 * jnp.pi)
+        theta_dot_range = (-8.0, 8.0)
+        plt.xlim(*theta_range)
+        plt.ylim(*theta_dot_range)
+
+        th = jnp.linspace(*theta_range, 20)
+        thd = jnp.linspace(*theta_dot_range, 20)
+        TH, THD = jnp.meshgrid(th, thd)
+        X = jnp.stack([TH, THD], axis=-1)
+        U = jnp.zeros((20, 20, 1))
+
+        dX = jax.vmap(jax.vmap(self.dynamics))(X, U) - X
+        plt.quiver(X[:, :, 0], X[:, :, 1], dX[:, :, 0], dX[:, :, 1], color="k")
+        plt.xlabel("Angle (rad)")
+        plt.ylabel("Angular velocity (rad/s)")
