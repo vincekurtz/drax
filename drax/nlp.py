@@ -27,8 +27,12 @@ class NonlinearProgram(ABC):
         assert lower.shape == (num_vars,)
         assert upper.shape == (num_vars,)
         self.num_vars = num_vars
-        self.lower = lower
-        self.upper = upper
+
+        # Get indices and values of finite bounds
+        self.bounded_below = jnp.where(jnp.isfinite(lower))
+        self.bounded_above = jnp.where(jnp.isfinite(upper))
+        self.lower = lower[self.bounded_below]
+        self.upper = upper[self.bounded_above]
 
     @abstractmethod
     def objective(self, x: jnp.ndarray) -> jnp.ndarray:

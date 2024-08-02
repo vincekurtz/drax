@@ -30,16 +30,12 @@ def solve(prob: NonlinearProgram, guess: jnp.ndarray) -> jnp.ndarray:
         h = prob.residual(x)
 
         # Add log barrier terms to the cost to enforce l <= x <= u.
-        u_err = jnp.maximum(prob.upper - x, 1e-4)
-        l_err = jnp.maximum(x + prob.lower, 1e-4)
+        u_err = jnp.maximum(prob.upper - x[prob.bounded_above], 1e-4)
+        l_err = jnp.maximum(x[prob.bounded_below] - prob.lower, 1e-4)
         f -= jnp.sum(rho * jnp.log(u_err))
         f -= jnp.sum(rho * jnp.log(l_err))
 
-        print(u_err[0])
-        print(jnp.log(u_err)[0])
-        print(f)
-        breakpoint()
-
+        # TODO: return f, h, and constraint violation
         return f + lmbda.T @ h + 0.5 * mu * h.T @ h
 
     # TODO: support sampling approximation
@@ -66,7 +62,12 @@ def solve(prob: NonlinearProgram, guess: jnp.ndarray) -> jnp.ndarray:
 
         # Clip to the feasible region. This should be a no-op if the log barrier
         # is working, but that sometimes needs to be relaxed.
-        #x = jnp.clip(x, prob.lower, prob.upper)
+        x = x.at[prob.bounded_below].set(
+            jnp.maximum(x[prob.bounded_below], prob.lower)
+        )
+        x = x.at[prob.bounded_above].set(
+            jnp.minimum(x[prob.bounded_above], prob.upper)
+        )
 
         if i % print_every == 0:
             # TODO: replace this with a status callback

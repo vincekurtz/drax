@@ -58,7 +58,7 @@ def test_solve() -> None:
     prob = PendulumSwingup(horizon=50, x_init=jnp.array([3.1, 0.0]))
 
     rng = jax.random.key(0)
-    guess = jax.random.uniform(rng, (prob.num_vars,), minval=-5.0, maxval=5.0)
+    guess = jax.random.uniform(rng, (prob.num_vars,), minval=-0.9, maxval=0.9)
 
     sol = solve(prob, guess)
     assert sol.shape == (prob.num_vars,)
@@ -76,6 +76,6 @@ def test_solve() -> None:
 
 
 if __name__ == "__main__":
-    test_ocp()
-    test_plot()
+    # test_ocp()
+    # test_plot()
     test_solve()
