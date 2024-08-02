@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from drax.nlp import NonlinearProgram
 from drax.ocp import OptimalControlProblem
-from drax.solver import solve
+from drax.solver import SolverOptions, solve
 from drax.systems.pendulum import PendulumSwingup
 
 
@@ -59,8 +59,10 @@ def test_solve() -> None:
 
     rng = jax.random.key(0)
     guess = jax.random.uniform(rng, (prob.num_vars,), minval=-0.9, maxval=0.9)
+    options = SolverOptions(num_iters=20000, print_every=5000)
 
-    sol = solve(prob, guess)
+    data = solve(prob, options, guess)
+    sol = data.x
     assert sol.shape == (prob.num_vars,)
 
     xs, us = prob.unflatten(sol)

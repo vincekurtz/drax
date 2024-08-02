@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import NamedTuple, Tuple
 
 import jax
@@ -11,12 +12,14 @@ class SolverOptions(NamedTuple):
 
     Parameters:
         num_iters: The total number of iterations to run.
+        print_every: How many iterations to wait between printing status.
         alpha: The step size.
         mu: The augmented Lagrangian penalty parameter.
         rho: The log barrier parameter for bound constraints.
     """
 
     num_iters: int = 5000
+    print_every: int = 500
     alpha: float = 0.01
     mu: float = 10.0
     rho: float = 0.1
@@ -135,125 +138,54 @@ def _optimizer_step(
     return data._replace(k=data.k + 1, x=x, lmbda=lmbda)
 
 
-def solve_from_warm_start(
-    prob: NonlinearProgram, data: SolverData, options: SolverOptions
+def solve(
+    prob: NonlinearProgram, options: SolverOptions, guess: jnp.ndarray
 ) -> SolverData:
-    """Solve using a warm start from a previous solution."""
-    pass
+    """Solve the nonlinear optimization problem.
 
+    Args:
+        prob: The nonlinear program to solve.
+        options: The optimizer parameters.
+        guess: An initial guess for the decision variables.
 
-def solve_verbose(
-    prob: NonlinearProgram,
-    guess: jnp.ndarray,
-    options: SolverOptions,
-    print_every: int = 100,
-) -> SolverData:
-    """Solve with print statements every `print_every` iterations."""
-    pass
-
-
-def solve(prob: NonlinearProgram, guess: jnp.ndarray) -> jnp.ndarray:
-    """Solve a generic nonlinear program using a direct method."""
-    options = SolverOptions()
-
+    Returns:
+        The solution, including decision variables and other data.
+    """
+    # Initialize the solver data
+    h = jax.jit(prob.residual)(guess)  # TODO: define prob.num_eq_cons
     data = SolverData(
         k=0,
         x=guess,
-        lmbda=jnp.zeros_like(prob.residual(guess)),  # TODO: avoid reevaluating
+        lmbda=jnp.zeros_like(h),
         f=0.0,
-        h=jnp.zeros_like(prob.residual(guess)),
+        h=h,
         grad=jnp.zeros_like(guess),
         lagrangian=0.0,
     )
 
-    jit_step = jax.jit(_optimizer_step, static_argnums=(1, 2))
+    # Determine how many times to print status, and how many iterations to run
+    # between each print.
+    print_every = min(options.num_iters, options.print_every)
+    num_prints = options.num_iters // print_every
 
-    for k in range(options.num_iters):
-        data = jit_step(data, prob, options)
-        if k % 100 == 0:
-            cons_viol = jnp.mean(jnp.square(data.h))
-            grad_norm = jnp.linalg.norm(data.grad)
-            print(
-                f"Iter {k}: cost = {data.f:.4f}, cons = {cons_viol:.4f}, "
-                f"lagrangian = {data.lagrangian:.4f}, grad = {grad_norm:.4f}"
-            )
+    # Update function takes runs N iterations before printing status
+    scan_fn = lambda data, _: (_optimizer_step(data, prob, options), None)
+    update_fn = jax.jit(
+        lambda data: jax.lax.scan(scan_fn, data, jnp.arange(print_every))[0]
+    )
 
-    return data.x
+    start_time = datetime.now()
+    for _ in range(num_prints):
+        # Do a bunch of iterations
+        data = update_fn(data)
 
-
-def old_solve(prob: NonlinearProgram, guess: jnp.ndarray) -> jnp.ndarray:
-    """Solve a generic nonlinear program using a direct method.
-
-    Args:
-        prob: The nonlinear program to solve.
-        guess: An initial guess for the decision variables.
-
-    Returns:
-        The optimal decision variables.
-    """
-    # TODO: make a solver parameters struct instead of hardcoding here
-    num_iters = 5000
-    print_every = 100
-    step_size = 0.01
-    mu = 10.0
-    rho = 0.1
-
-    def lagrangian(x: jnp.ndarray, lmbda: jnp.ndarray) -> jnp.ndarray:
-        """The augmented Lagrangian L(x, λ) = f(x) + λᵀh(x) + μ/2 h(x)².
-
-        Also adds log barrier terms to the cost to account enforce l <= x <= u.
-        """
-        f = prob.objective(x)
-        h = prob.residual(x)
-
-        # Add log barrier terms to the cost to enforce l <= x <= u.
-        u_err = jnp.maximum(prob.upper - x[prob.bounded_above], 1e-4)
-        l_err = jnp.maximum(x[prob.bounded_below] - prob.lower, 1e-4)
-        f -= jnp.sum(rho * jnp.log(u_err))
-        f -= jnp.sum(rho * jnp.log(l_err))
-
-        # TODO: return f, h, and constraint violation
-        return f + lmbda.T @ h + 0.5 * mu * h.T @ h
-
-    # TODO: support sampling approximation
-    # TODO: move all jitting outside this solve function
-    jit_lagrangian_and_grad = jax.jit(jax.value_and_grad(lagrangian))
-    jit_cost = jax.jit(prob.objective)
-    jit_constraints = jax.jit(prob.residual)
-
-    # TODO: user can provide an initial guess for both x and λ
-    x = guess
-    lmbda = jnp.zeros_like(jit_constraints(x))
-
-    # TODO: replace with lax.while
-    for i in range(num_iters):
-        L, dL = jit_lagrangian_and_grad(x, lmbda)
-
-        # Flow the decision variable and Lagrange multiplier according to
-        #   ẋ = -∂L/∂x,
-        #   λ̇ = ∂L/∂λ
-        # See Platt and Barr, "Constrained Differential Optimization",
-        # NeurIPS 1987 for more details.
-        x += -step_size * dL
-        lmbda += step_size * mu * jit_constraints(x)  # TODO: avoid reevaluating
-
-        # Clip to the feasible region. This should be a no-op if the log barrier
-        # is working, but that sometimes needs to be relaxed.
-        x = x.at[prob.bounded_below].set(
-            jnp.maximum(x[prob.bounded_below], prob.lower)
-        )
-        x = x.at[prob.bounded_above].set(
-            jnp.minimum(x[prob.bounded_above], prob.upper)
+        # Print status
+        cons_viol = jnp.mean(jnp.square(data.h))
+        grad_norm = jnp.linalg.norm(data.grad)
+        print(
+            f"Iter {data.k}: cost = {data.f:.4f}, cons = {cons_viol:.4f}, "
+            f"lagrangian = {data.lagrangian:.4f}, grad = {grad_norm:.4f}, "
+            f"time = {datetime.now() - start_time}"
         )
 
-        if i % print_every == 0:
-            # TODO: replace this with a status callback
-            cost = jit_cost(x)
-            cons = jnp.mean(jnp.square(jit_constraints(x)))
-            grad = jnp.linalg.norm(dL)
-            print(
-                f"Iter {i}: cost = {cost:.4f}, cons = {cons:.4f}, "
-                f"lagrangian = {L:.4f}, grad = {grad:.4f}"
-            )
-
-    return x
+    return data
