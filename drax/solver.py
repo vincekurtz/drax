@@ -211,11 +211,15 @@ def make_warm_start(
         rng=jax.random.key(0),
     )
 
-
 def solve(
     prob: NonlinearProgram, options: SolverOptions, guess: jnp.ndarray
 ) -> SolverData:
-    """Solve the nonlinear optimization problem.
+
+
+def solve_verbose(
+    prob: NonlinearProgram, options: SolverOptions, guess: jnp.ndarray
+) -> SolverData:
+    """Solve the nonlinear optimization problem and print status.
 
     Args:
         prob: The nonlinear program to solve.
@@ -238,18 +242,18 @@ def solve(
         lambda data: jax.lax.scan(scan_fn, data, jnp.arange(print_every))[0]
     )
 
-    start_time = datetime.now()
+    #start_time = datetime.now()
     for _ in range(num_prints):
         # Do a bunch of iterations
         data = update_fn(data)
 
         # Print status
-        cons_viol = jnp.mean(jnp.square(data.h))
-        grad_norm = jnp.linalg.norm(data.grad)
-        print(
-            f"Iter {data.k}: cost = {data.f:.4f}, cons = {cons_viol:.4f}, "
-            f"lagrangian = {data.lagrangian:.4f}, grad = {grad_norm:.4f}, "
-            f"time = {datetime.now() - start_time}"
-        )
+        #cons_viol = jnp.mean(jnp.square(data.h))
+        #grad_norm = jnp.linalg.norm(data.grad)
+        #print(
+        #    f"Iter {data.k}: cost = {data.f:.4f}, cons = {cons_viol:.4f}, "
+        #    f"lagrangian = {data.lagrangian:.4f}, grad = {grad_norm:.4f}, "
+        #    f"time = {datetime.now() - start_time}"
+        #)
 
     return data

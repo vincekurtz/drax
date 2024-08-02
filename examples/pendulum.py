@@ -46,6 +46,49 @@ def optimize() -> None:
     plt.show()
 
 
+def optimize_parallel() -> None:
+    """Solve a bunch of swingups from different initial conditions."""
+    num_initial_conditions = 100
+
+    # Sample a bunch of initial states
+    rng = jax.random.PRNGKey(0)
+    x_inits = jax.random.uniform(rng, (num_initial_conditions, 2), 
+                                 minval=-4.0, maxval=4.0)
+    
+    # Set the solver options
+    options = SolverOptions(
+        num_iters=20000,
+        print_every=5000,
+        alpha=0.01,
+        mu=10.0,
+        rho=0.01,
+        gradient_method="autodiff",
+        sigma=0.01,
+        num_samples=128,
+    )
+
+    # Set up an optimization function that takes a single initial condition
+    def optimize_single(x_init: jnp.ndarray) -> jnp.ndarray:
+        prob = PendulumSwingup(horizon=50, x_init=x_init)
+        sol = solve(prob, options, jnp.zeros(prob.num_vars))
+        return prob.unflatten(sol.x)
+
+    # Solve all the problems in parallel    
+    #xs, us = optimize_single(x_inits[0])
+    xs, us = jax.vmap(optimize_single)(x_inits)
+
+    print(xs.shape)
+    print(us.shape)
+
+    PendulumSwingup(10, jnp.zeros(2)).plot_scenario()  # dummy prob for plots
+
+    for xs_i in xs:
+        plt.plot(xs_i[:, 0], xs_i[:, 1], "ro-")
+    plt.scatter(x_inits[:, 0], x_inits[:, 1], c="k", marker="x")
+    plt.show()
+
+
+
 def animate() -> None:
     """Solve the swingup problem and animate the solution process."""
     prob = PendulumSwingup(horizon=50, x_init=jnp.array([3.1, 0.0]))
@@ -98,5 +141,6 @@ def animate() -> None:
 
 
 if __name__ == "__main__":
-    optimize()
-    animate()
+    #optimize()
+    #animate()
+    optimize_parallel()
