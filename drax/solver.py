@@ -36,6 +36,7 @@ class SolverData(NamedTuple):
         h: The constraint residuals at the current iteration.
         grad: The gradient of the Lagrangian w.r.t. x at the current iteration.
         lagrangian: The augmented Lagrangian at the current iteration.
+        rng: The random number generator state.
 
     """
 
@@ -46,6 +47,7 @@ class SolverData(NamedTuple):
     h: jnp.ndarray
     grad: jnp.ndarray
     lagrangian: jnp.ndarray
+    rng: jnp.ndarray
 
 
 def _calc_lagrangian(
@@ -80,10 +82,12 @@ def _calc_lagrangian(
     return L, (f, h)
 
 
-def _calc_gradient_data(
+def _calc_gradient_data_autodiff(
     data: SolverData, prob: NonlinearProgram, options: SolverOptions
 ) -> SolverData:
     """Compute the current cost, constraints, and lagrangian, and gradient.
+
+    Use JAX autodiff to compute the gradient of the Lagrangian.
 
     Args:
         data: The current iteration data.
@@ -93,13 +97,47 @@ def _calc_gradient_data(
     Returns:
         A SolverData object with updated f, h, grad, and lagrangian.
     """
-    # TODO: support sampling-based approximation
     grad_fn = jax.value_and_grad(
         lambda x: _calc_lagrangian(x, data.lmbda, prob, options), has_aux=True
     )
 
     (L, (f, h)), grad = grad_fn(data.x)
     return data._replace(f=f, h=h, grad=grad, lagrangian=L)
+
+
+def _calc_gradient_data_sampling(
+    data: SolverData, prob: NonlinearProgram, options: SolverOptions
+) -> SolverData:
+    """Compute the current cost, constraints, and lagrangian, and gradient.
+
+    Use a zero-order sampling approximation for the gradient of the Lagrangian.
+
+    Args:
+        data: The current iteration data.
+        prob: The nonlinear program to solve.
+        options: The optimizer parameters.
+
+    Returns:
+        A SolverData object with updated f, h, grad, and lagrangian.
+    """
+    lagrangian, (f, h) = _calc_lagrangian(data.x, data.lmbda, prob, options)
+
+    # TODO: make parameters
+    sigma = 0.01
+    num_rollouts = 512
+
+    rng, noise_rng = jax.random.split(data.rng)
+    noise = sigma * jax.random.normal(noise_rng, (num_rollouts, prob.num_vars))
+
+    X = data.x + noise
+    L, _ = jax.vmap(_calc_lagrangian, in_axes=(0, None, None, None))(
+        X, data.lmbda, prob, options
+    )
+
+    grad = jnp.einsum("i,ij->j", L - lagrangian, noise)
+    grad /= num_rollouts * sigma**2
+
+    return data._replace(f=f, h=h, grad=grad, lagrangian=lagrangian, rng=rng)
 
 
 def _optimizer_step(
@@ -116,7 +154,8 @@ def _optimizer_step(
         The updated iteration data.
     """
     # Compute the current cost, constraints, Lagrangian, and gradient.
-    data = _calc_gradient_data(data, prob, options)
+    # data = _calc_gradient_data_autodiff(data, prob, options)
+    data = _calc_gradient_data_sampling(data, prob, options)
 
     # Flow the decision variable and Lagrange multiplier according to
     #   ẋ = -∂L/∂x,
@@ -161,6 +200,7 @@ def solve(
         h=h,
         grad=jnp.zeros_like(guess),
         lagrangian=0.0,
+        rng=jax.random.key(0),
     )
 
     # Determine how many times to print status, and how many iterations to run
