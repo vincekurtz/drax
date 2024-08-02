@@ -212,21 +212,19 @@ def _make_solver_data(
     )
 
 
-def solve(
-    prob: NonlinearProgram, options: SolverOptions, guess: jnp.ndarray
+def solve_from_warm_start(
+    prob: NonlinearProgram, options: SolverOptions, data: SolverData
 ) -> SolverData:
     """Solve the nonlinear optimization problem.
 
     Args:
         prob: The nonlinear program to solve.
         options: The optimizer parameters.
-        guess: An initial guess for the decision variables.
+        data: An warm start containing the decision variables and other data.
 
     Returns:
         The solution, including decision variables and other data.
     """
-    data = _make_solver_data(prob, guess)
-
     # Determine how many times to print status, and how many iterations to run
     # between each print.
     print_every = min(options.num_iters, options.print_every)
@@ -253,3 +251,20 @@ def solve(
         )
 
     return data
+
+
+def solve(
+    prob: NonlinearProgram, options: SolverOptions, guess: jnp.ndarray
+) -> SolverData:
+    """Solve the nonlinear optimization problem.
+
+    Args:
+        prob: The nonlinear program to solve.
+        options: The optimizer parameters.
+        guess: An initial guess for the decision variables.
+
+    Returns:
+        The solution, including decision variables and other data.
+    """
+    data = _make_solver_data(prob, guess)
+    return solve_from_warm_start(prob, options, data)
