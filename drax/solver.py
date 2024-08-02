@@ -186,7 +186,7 @@ def _optimizer_step(
     return data._replace(k=data.k + 1, x=x, lmbda=lmbda)
 
 
-def _make_solver_data(
+def make_warm_start(
     prob: NonlinearProgram, guess: jnp.ndarray, seed: int = 0
 ) -> SolverData:
     """Initialize solver data from an initial guess for x.
@@ -266,5 +266,5 @@ def solve(
     Returns:
         The solution, including decision variables and other data.
     """
-    data = _make_solver_data(prob, guess)
+    data = make_warm_start(prob, guess)
     return solve_from_warm_start(prob, options, data)
