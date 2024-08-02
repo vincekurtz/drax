@@ -59,7 +59,11 @@ def test_solve() -> None:
 
     rng = jax.random.key(0)
     guess = jax.random.uniform(rng, (prob.num_vars,), minval=-0.9, maxval=0.9)
-    options = SolverOptions(num_iters=20000, print_every=5000)
+    options = SolverOptions(
+        num_iters=20000,
+        print_every=5000,
+        gradient_method="sampling",
+    )
 
     data = solve(prob, options, guess)
     sol = data.x

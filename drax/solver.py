@@ -16,6 +16,9 @@ class SolverOptions(NamedTuple):
         alpha: The step size.
         mu: The augmented Lagrangian penalty parameter.
         rho: The log barrier parameter for bound constraints.
+        gradient_method: How to compute gradients ("autodiff" or "sampling").
+        sigma: Variance for sampling-based gradient estimation.
+        num_samples: Number of samples for sampling-based gradient estimation.
     """
 
     num_iters: int = 5000
@@ -23,6 +26,9 @@ class SolverOptions(NamedTuple):
     alpha: float = 0.01
     mu: float = 10.0
     rho: float = 0.1
+    gradient_method: str = "autodiff"
+    sigma: float = 0.01
+    num_samples: int = 128
 
 
 class SolverData(NamedTuple):
@@ -122,12 +128,10 @@ def _calc_gradient_data_sampling(
     """
     lagrangian, (f, h) = _calc_lagrangian(data.x, data.lmbda, prob, options)
 
-    # TODO: make parameters
-    sigma = 0.01
-    num_rollouts = 512
-
     rng, noise_rng = jax.random.split(data.rng)
-    noise = sigma * jax.random.normal(noise_rng, (num_rollouts, prob.num_vars))
+    noise = options.sigma * jax.random.normal(
+        noise_rng, (options.num_samples, prob.num_vars)
+    )
 
     X = data.x + noise
     L, _ = jax.vmap(_calc_lagrangian, in_axes=(0, None, None, None))(
@@ -135,7 +139,7 @@ def _calc_gradient_data_sampling(
     )
 
     grad = jnp.einsum("i,ij->j", L - lagrangian, noise)
-    grad /= num_rollouts * sigma**2
+    grad /= options.num_samples * options.sigma**2
 
     return data._replace(f=f, h=h, grad=grad, lagrangian=lagrangian, rng=rng)
 
@@ -154,8 +158,13 @@ def _optimizer_step(
         The updated iteration data.
     """
     # Compute the current cost, constraints, Lagrangian, and gradient.
-    # data = _calc_gradient_data_autodiff(data, prob, options)
-    data = _calc_gradient_data_sampling(data, prob, options)
+    # N.B. standard if statement is fine here b/c options is a static argument
+    if options.gradient_method == "autodiff":
+        data = _calc_gradient_data_autodiff(data, prob, options)
+    elif options.gradient_method == "sampling":
+        data = _calc_gradient_data_sampling(data, prob, options)
+    else:
+        raise ValueError(f"Unknown gradient method: {options.gradient_method}")
 
     # Flow the decision variable and Lagrange multiplier according to
     #   ẋ = -∂L/∂x,
