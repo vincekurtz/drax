@@ -6,10 +6,9 @@ from drax.solver import (
     SolverOptions,
     _calc_gradient_data_autodiff,
     _calc_gradient_data_sampling,
-    _make_solver_data,
-    _optimizer_step,
+    make_warm_start,
+    optimizer_step,
     solve,
-    solve_from_warm_start,
 )
 from drax.systems.pendulum import PendulumSwingup
 
@@ -45,27 +44,19 @@ def test_solve() -> None:
 
     # Run manually
     options = SolverOptions(gradient_method="autodiff")
-    data4 = _make_solver_data(prob, guess)
-    jit_step = jax.jit(_optimizer_step, static_argnums=(1, 2))
+    data4 = make_warm_start(prob, guess)
+    jit_step = jax.jit(optimizer_step, static_argnums=(1, 2))
     for _ in range(100):
         data4 = jit_step(data4, prob, options)
     assert jnp.allclose(data1.x, data4.x, atol=1e-4)
     assert jnp.allclose(data1.lmbda, data4.lmbda, atol=1e-4)
-
-    # Run a few times from a warm start
-    options = SolverOptions(num_iters=20)
-    data5 = _make_solver_data(prob, guess)
-    for _ in range(5):
-        data5 = solve_from_warm_start(prob, options, data5)
-    assert jnp.allclose(data1.x, data5.x, atol=1e-4)
-    assert jnp.allclose(data1.lmbda, data5.lmbda, atol=1e-4)
 
 
 def test_sampling_gradient() -> None:
     """Test our sampling-based gradient approximation."""
     prob = PendulumSwingup(horizon=10, x_init=jnp.array([3.1, 0.0]))
     guess = jnp.zeros(prob.num_vars)
-    data = _make_solver_data(prob, guess)
+    data = make_warm_start(prob, guess)
 
     # Compute the gradient using autodiff
     options = SolverOptions(gradient_method="autodiff")

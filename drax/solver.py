@@ -144,7 +144,7 @@ def _calc_gradient_data_sampling(
     return data._replace(f=f, h=h, grad=grad, lagrangian=lagrangian, rng=rng)
 
 
-def _optimizer_step(
+def optimizer_step(
     data: SolverData, prob: NonlinearProgram, options: SolverOptions
 ) -> SolverData:
     """Take a single optimizer step.
@@ -212,26 +212,28 @@ def make_warm_start(
     )
 
 
-def solve_from_warm_start(
-    prob: NonlinearProgram, options: SolverOptions, data: SolverData
+def solve(
+    prob: NonlinearProgram, options: SolverOptions, guess: jnp.ndarray
 ) -> SolverData:
     """Solve the nonlinear optimization problem.
 
     Args:
         prob: The nonlinear program to solve.
         options: The optimizer parameters.
-        data: An warm start containing the decision variables and other data.
+        guess: An initial guess for the decision variables.
 
     Returns:
         The solution, including decision variables and other data.
     """
+    data = make_warm_start(prob, guess)
+
     # Determine how many times to print status, and how many iterations to run
     # between each print.
     print_every = min(options.num_iters, options.print_every)
     num_prints = options.num_iters // print_every
 
     # Update function takes runs N iterations before printing status
-    scan_fn = lambda data, _: (_optimizer_step(data, prob, options), None)
+    scan_fn = lambda data, _: (optimizer_step(data, prob, options), None)
     update_fn = jax.jit(
         lambda data: jax.lax.scan(scan_fn, data, jnp.arange(print_every))[0]
     )
@@ -251,20 +253,3 @@ def solve_from_warm_start(
         )
 
     return data
-
-
-def solve(
-    prob: NonlinearProgram, options: SolverOptions, guess: jnp.ndarray
-) -> SolverData:
-    """Solve the nonlinear optimization problem.
-
-    Args:
-        prob: The nonlinear program to solve.
-        options: The optimizer parameters.
-        guess: An initial guess for the decision variables.
-
-    Returns:
-        The solution, including decision variables and other data.
-    """
-    data = make_warm_start(prob, guess)
-    return solve_from_warm_start(prob, options, data)
