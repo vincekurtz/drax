@@ -77,11 +77,13 @@ def test_solve() -> None:
 
         plt.subplot(2, 1, 2)
         plt.plot(us, "bo-")
+        plt.xlabel("Time step")
+        plt.ylabel("Control")
 
         plt.show()
 
 
 if __name__ == "__main__":
-    # test_ocp()
-    # test_plot()
+    test_ocp()
+    test_plot()
     test_solve()
