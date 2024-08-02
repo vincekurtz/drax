@@ -19,12 +19,28 @@ def solve(prob: NonlinearProgram, guess: jnp.ndarray) -> jnp.ndarray:
     print_every = 100
     step_size = 0.01
     mu = 10.0
+    rho = 0.1
 
     def lagrangian(x: jnp.ndarray, lmbda: jnp.ndarray) -> jnp.ndarray:
-        """The augmented Lagrangian L(x, λ) = f(x) + λᵀh(x) + μ/2 h(x)²."""
-        # TODO: add log barriers for the feasible region
+        """The augmented Lagrangian L(x, λ) = f(x) + λᵀh(x) + μ/2 h(x)².
+
+        Also adds log barrier terms to the cost to account enforce l <= x <= u.
+        """
+        f = prob.objective(x)
         h = prob.residual(x)
-        return prob.objective(x) + lmbda.T @ h + 0.5 * mu * h.T @ h
+
+        # Add log barrier terms to the cost to enforce l <= x <= u.
+        u_err = jnp.maximum(prob.upper - x, 1e-4)
+        l_err = jnp.maximum(x + prob.lower, 1e-4)
+        f -= jnp.sum(rho * jnp.log(u_err))
+        f -= jnp.sum(rho * jnp.log(l_err))
+
+        print(u_err[0])
+        print(jnp.log(u_err)[0])
+        print(f)
+        breakpoint()
+
+        return f + lmbda.T @ h + 0.5 * mu * h.T @ h
 
     # TODO: support sampling approximation
     # TODO: move all jitting outside this solve function
@@ -50,7 +66,7 @@ def solve(prob: NonlinearProgram, guess: jnp.ndarray) -> jnp.ndarray:
 
         # Clip to the feasible region. This should be a no-op if the log barrier
         # is working, but that sometimes needs to be relaxed.
-        x = jnp.clip(x, prob.lower, prob.upper)
+        #x = jnp.clip(x, prob.lower, prob.upper)
 
         if i % print_every == 0:
             # TODO: replace this with a status callback
