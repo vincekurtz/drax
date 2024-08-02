@@ -186,6 +186,32 @@ def _optimizer_step(
     return data._replace(k=data.k + 1, x=x, lmbda=lmbda)
 
 
+def _make_solver_data(
+    prob: NonlinearProgram, guess: jnp.ndarray, seed: int = 0
+) -> SolverData:
+    """Initialize solver data from an initial guess for x.
+
+    Args:
+        prob: The nonlinear program to solve.
+        guess: The initial guess for the decision variables x
+        seed: The random seed to use for the random number generator.
+
+    Returns:
+        Full initial solver data, including lagrange multipliers, etc.
+    """
+    h = jax.jit(prob.residual)(guess)
+    return SolverData(
+        k=0,
+        x=guess,
+        lmbda=jnp.zeros_like(h),
+        f=0.0,
+        h=h,
+        grad=jnp.zeros_like(guess),
+        lagrangian=0.0,
+        rng=jax.random.key(0),
+    )
+
+
 def solve(
     prob: NonlinearProgram, options: SolverOptions, guess: jnp.ndarray
 ) -> SolverData:
@@ -199,18 +225,7 @@ def solve(
     Returns:
         The solution, including decision variables and other data.
     """
-    # Initialize the solver data
-    h = jax.jit(prob.residual)(guess)  # TODO: define prob.num_eq_cons
-    data = SolverData(
-        k=0,
-        x=guess,
-        lmbda=jnp.zeros_like(h),
-        f=0.0,
-        h=h,
-        grad=jnp.zeros_like(guess),
-        lagrangian=0.0,
-        rng=jax.random.key(0),
-    )
+    data = _make_solver_data(prob, guess)
 
     # Determine how many times to print status, and how many iterations to run
     # between each print.
