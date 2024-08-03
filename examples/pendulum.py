@@ -4,12 +4,14 @@
 #
 ##
 
+import time
+
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-from drax.solver import SolverOptions, make_warm_start, optimizer_step, solve
+from drax.solver import SolverOptions, make_warm_start, solve, solve_verbose
 from drax.systems.pendulum import PendulumSwingup
 
 
@@ -20,7 +22,6 @@ def optimize() -> None:
     # Set the solver options
     options = SolverOptions(
         num_iters=20000,
-        print_every=5000,
         alpha=0.01,
         mu=10.0,
         rho=0.01,
@@ -30,7 +31,9 @@ def optimize() -> None:
     )
 
     # Solve from a zero initial guess
-    sol = solve(prob, options, jnp.zeros(prob.num_vars))
+    sol = solve_verbose(
+        prob, options, jnp.zeros(prob.num_vars), print_every=5000
+    )
 
     # Plot the solution
     xs, us = prob.unflatten(sol.x)
@@ -43,6 +46,42 @@ def optimize() -> None:
     plt.xlabel("Time (s)")
     plt.ylabel("Control Torque (Nm)")
 
+    plt.show()
+
+
+def optimize_parallel() -> None:
+    """Solve a bunch of swingups from different initial conditions."""
+    N = 100  # number of parallel problems to solve
+
+    # Sample a bunch of initial states
+    rng = jax.random.PRNGKey(0)
+    x_inits = jax.random.uniform(rng, (N, 2), minval=-4.0, maxval=4.0)
+
+    # Set the solver options
+    options = SolverOptions(
+        num_iters=20000,
+        alpha=0.01,
+        mu=10.0,
+        rho=0.01,
+        gradient_method="autodiff",
+    )
+
+    # Set up an optimization function that maps x0 -> solution
+    def optimize_single(x_init: jnp.ndarray) -> jnp.ndarray:
+        prob = PendulumSwingup(horizon=50, x_init=x_init)
+        warm_start = make_warm_start(prob, jnp.zeros(prob.num_vars))
+        sol = solve(prob, options, warm_start)
+        return prob.unflatten(sol.x)
+
+    # Solve all the problems in parallel
+    st = time.time()
+    xs, us = jax.vmap(optimize_single)(x_inits)
+    print(f"Solved {N} problems in {time.time() - st:.2f} s")
+
+    # Plot the results
+    PendulumSwingup(10, jnp.zeros(2)).plot_scenario()  # dummy prob for plots
+    for xs_i in xs:
+        plt.plot(xs_i[:, 0], xs_i[:, 1], "bo-", alpha=0.3)
     plt.show()
 
 
@@ -69,15 +108,13 @@ def animate() -> None:
     data = make_warm_start(prob, guess)
 
     # Solve the problem, recording the solution at intermediate steps
+    jit_solve = jax.jit(solve, static_argnums=(0, 1))
+    num_saves = options.num_iters // 100
     all_data = [data]
-    jit_optimizer_step = jax.jit(optimizer_step, static_argnums=(1, 2))
-    for _ in range(5000):
-        data = jit_optimizer_step(data, prob, options)
-        if data.k % 100 == 0:
-            all_data.append(data)
-
-    # Recover the state and control trajectories from the solution
-    xs, us = prob.unflatten(data.x)
+    options = options._replace(num_iters=100)
+    for _ in range(num_saves):
+        data = jit_solve(prob, options, data)
+        all_data.append(data)
 
     # Make an animation of the solution process
     plt.figure()
@@ -98,5 +135,6 @@ def animate() -> None:
 
 
 if __name__ == "__main__":
-    optimize()
-    animate()
+    # optimize()
+    optimize_parallel()
+    # animate()

@@ -3,34 +3,55 @@ import jax.numpy as jnp
 import pytest
 
 from drax.solver import (
+    SolverData,
     SolverOptions,
     _calc_gradient_data_autodiff,
     _calc_gradient_data_sampling,
     make_warm_start,
     optimizer_step,
     solve,
+    solve_verbose,
 )
 from drax.systems.pendulum import PendulumSwingup
+
+
+def _is_same_solver_data(data1: SolverData, data2: SolverData) -> bool:
+    """Check if two SolverData objects are the same."""
+    return (
+        data1.k == data2.k
+        and jnp.allclose(data1.x, data2.x)
+        and jnp.allclose(data1.lmbda, data2.lmbda)
+        and jnp.allclose(data1.f, data2.f)
+        and jnp.allclose(data1.h, data2.h)
+        and jnp.allclose(data1.grad, data2.grad)
+        and jnp.allclose(data1.lagrangian, data2.lagrangian)
+    )
 
 
 def test_solve() -> None:
     """Test the basic mechanics of the solver."""
     prob = PendulumSwingup(horizon=20, x_init=jnp.array([3.1, 0.0]))
     guess = jnp.zeros(prob.num_vars)
+    warm_start = make_warm_start(prob, guess)
+    options = SolverOptions(num_iters=100)
 
-    # Run with lots of print statements
-    options = SolverOptions(num_iters=100, print_every=10)
-    data1 = solve(prob, options, guess)
-    assert data1.x.shape == (prob.num_vars,)
-    assert data1.lmbda.shape == data1.h.shape
-    assert jnp.mean(jnp.square(data1.h)) < 0.1
-    assert data1.k == options.num_iters
+    # Run the standard solve
+    sol1 = solve(prob, options, warm_start)
+    assert sol1.x.shape == (prob.num_vars,)
+    assert sol1.lmbda.shape == sol1.h.shape
+    assert jnp.mean(jnp.square(sol1.h)) < 0.1
+    assert sol1.k == options.num_iters
 
-    # Run with only 1 print statment
-    options = SolverOptions(num_iters=100, print_every=1000)
-    data2 = solve(prob, options, guess)
-    assert jnp.allclose(data1.x, data2.x, atol=1e-4)
-    assert jnp.allclose(data1.lmbda, data2.lmbda, atol=1e-4)
+    # Solve with print statements
+    sol2 = solve_verbose(prob, options, guess, print_every=10)
+    assert _is_same_solver_data(sol1, sol2)
+
+    # Step through the solve manually
+    jit_step = jax.jit(optimizer_step, static_argnums=(1, 2))
+    sol3 = warm_start
+    for _ in range(options.num_iters):
+        sol3 = jit_step(sol3, prob, options)
+    assert _is_same_solver_data(sol1, sol3)
 
     # Try with a bad gradient method
     with pytest.raises(ValueError):
@@ -39,17 +60,8 @@ def test_solve() -> None:
 
     # Run with sampling-based gradients
     options = SolverOptions(num_iters=100, gradient_method="sampling")
-    data3 = solve(prob, options, guess)
-    assert jnp.allclose(data1.f, data3.f, atol=0.1)
-
-    # Run manually
-    options = SolverOptions(gradient_method="autodiff")
-    data4 = make_warm_start(prob, guess)
-    jit_step = jax.jit(optimizer_step, static_argnums=(1, 2))
-    for _ in range(100):
-        data4 = jit_step(data4, prob, options)
-    assert jnp.allclose(data1.x, data4.x, atol=1e-4)
-    assert jnp.allclose(data1.lmbda, data4.lmbda, atol=1e-4)
+    sol4 = solve(prob, options, warm_start)
+    assert jnp.allclose(sol1.f, sol4.f, atol=0.1)
 
 
 def test_sampling_gradient() -> None:
