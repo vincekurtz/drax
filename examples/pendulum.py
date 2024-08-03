@@ -73,6 +73,11 @@ def optimize_parallel() -> None:
         sol = solve(prob, options, warm_start)
         return prob.unflatten(sol.x)
 
+    # Solve a single problem
+    st = time.time()
+    optimize_single(x_inits[0])
+    print(f"Solved a single problem in {time.time() - st:.2f} s")
+
     # Solve all the problems in parallel
     st = time.time()
     xs, us = jax.vmap(optimize_single)(x_inits)
