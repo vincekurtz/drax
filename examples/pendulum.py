@@ -75,12 +75,14 @@ def optimize_parallel() -> None:
 
     # Solve a single problem
     st = time.time()
-    optimize_single(x_inits[0])
+    xs, us = optimize_single(x_inits[0])
+    jax.block_until_ready(xs)
     print(f"Solved a single problem in {time.time() - st:.2f} s")
 
     # Solve all the problems in parallel
     st = time.time()
     xs, us = jax.vmap(optimize_single)(x_inits)
+    jax.block_until_ready(xs)
     print(f"Solved {N} problems in {time.time() - st:.2f} s")
 
     # Plot the results
