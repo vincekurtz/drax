@@ -94,6 +94,8 @@ def optimize_parallel() -> None:
 
 def animate() -> None:
     """Solve the swingup problem and animate the solution process."""
+    rng = jax.random.key(0)
+    N = 10  # Number of initial guesses to use at once
     prob = PendulumSwingup(horizon=50, x_init=jnp.array([3.1, 0.0]))
 
     # Set the solver options
@@ -106,16 +108,20 @@ def animate() -> None:
         num_samples=128,
     )
 
-    # Create a random initial guess
-    rng = jax.random.key(0)
+    # Create random initial guesses
+    def initialize(rng: jnp.ndarray) -> jnp.ndarray:
+        return make_warm_start(
+            prob,
+            jax.random.uniform(rng, (prob.num_vars,), minval=-6.0, maxval=6.0),
+        )
+
     rng, init_rng = jax.random.split(rng, 2)
-    guess = jax.random.uniform(
-        init_rng, (prob.num_vars,), minval=-6.0, maxval=6.0
-    )
-    data = make_warm_start(prob, guess)
+    init_rngs = jax.random.split(init_rng, N)
+    data = jax.vmap(initialize)(init_rngs)
 
     # Solve the problem, recording the solution at intermediate steps
-    jit_solve = jax.jit(solve, static_argnums=(0, 1))
+    vmap_solve = jax.vmap(solve, in_axes=(None, None, 0))
+    jit_solve = jax.jit(vmap_solve, static_argnums=(0, 1))
     num_saves = options.num_iters // 100
     all_data = [data]
     options = options._replace(num_iters=100)
@@ -127,11 +133,11 @@ def animate() -> None:
     plt.figure()
 
     prob.plot_scenario()
-    path = plt.plot([], [], "ro-")[0]
+    path = plt.plot([], [], "ro")[0]
 
     def _update(i: int):
-        xs, _ = prob.unflatten(all_data[i].x)
-        path.set_data(xs[:, 0], xs[:, 1])
+        xs, _ = jax.vmap(prob.unflatten)(all_data[i].x)
+        path.set_data(xs[..., 0], xs[..., 1])
         return path
 
     anim = FuncAnimation(  # noqa: F841 (anim needs to stay in scope)
@@ -143,5 +149,5 @@ def animate() -> None:
 
 if __name__ == "__main__":
     # optimize()
-    optimize_parallel()
-    # animate()
+    # optimize_parallel()
+    animate()
