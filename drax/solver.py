@@ -12,7 +12,6 @@ class SolverOptions(NamedTuple):
 
     Parameters:
         num_iters: The total number of iterations to run.
-        print_every: How many iterations to wait between printing status.
         alpha: The step size.
         mu: The augmented Lagrangian penalty parameter.
         rho: The log barrier parameter for bound constraints.
@@ -22,7 +21,6 @@ class SolverOptions(NamedTuple):
     """
 
     num_iters: int = 5000
-    print_every: int = 500
     alpha: float = 0.01
     mu: float = 10.0
     rho: float = 0.1
@@ -211,49 +209,66 @@ def make_warm_start(
         rng=jax.random.key(0),
     )
 
+
 def solve(
-    prob: NonlinearProgram, options: SolverOptions, guess: jnp.ndarray
+    prob: NonlinearProgram, options: SolverOptions, data: SolverData
 ) -> SolverData:
+    """Solve the optimization problem.
+
+    Args:
+        prob: The nonlinear program to solve.
+        options: The optimizer parameters.
+        data: A SolverData object with initial guess and other warm-start data.
+
+    Returns:
+        The solution, including decision variables and other data.
+    """
+    # TODO: use while loop and add early termination for errors
+    scan_fn = lambda data, _: (optimizer_step(data, prob, options), None)
+    data, _ = jax.lax.scan(scan_fn, data, jnp.arange(options.num_iters))
+    return data
 
 
 def solve_verbose(
-    prob: NonlinearProgram, options: SolverOptions, guess: jnp.ndarray
+    prob: NonlinearProgram,
+    options: SolverOptions,
+    guess: jnp.ndarray,
+    print_every: int = 500,
 ) -> SolverData:
-    """Solve the nonlinear optimization problem and print status.
+    """Solve the optimization problem and print status updates along the way.
 
     Args:
         prob: The nonlinear program to solve.
         options: The optimizer parameters.
         guess: An initial guess for the decision variables.
+        print_every: How many iterations to wait between printing status.
 
     Returns:
         The solution, including decision variables and other data.
     """
     data = make_warm_start(prob, guess)
 
-    # Determine how many times to print status, and how many iterations to run
-    # between each print.
-    print_every = min(options.num_iters, options.print_every)
+    # Determine how many iterations to run between printouts
+    print_every = min(options.num_iters, print_every)
     num_prints = options.num_iters // print_every
 
-    # Update function takes runs N iterations before printing status
-    scan_fn = lambda data, _: (optimizer_step(data, prob, options), None)
+    # Update function solves a subset of the total iterations
     update_fn = jax.jit(
-        lambda data: jax.lax.scan(scan_fn, data, jnp.arange(print_every))[0]
+        lambda data: solve(prob, options._replace(num_iters=print_every), data)
     )
 
-    #start_time = datetime.now()
+    start_time = datetime.now()
     for _ in range(num_prints):
         # Do a bunch of iterations
         data = update_fn(data)
 
         # Print status
-        #cons_viol = jnp.mean(jnp.square(data.h))
-        #grad_norm = jnp.linalg.norm(data.grad)
-        #print(
-        #    f"Iter {data.k}: cost = {data.f:.4f}, cons = {cons_viol:.4f}, "
-        #    f"lagrangian = {data.lagrangian:.4f}, grad = {grad_norm:.4f}, "
-        #    f"time = {datetime.now() - start_time}"
-        #)
+        cons_viol = jnp.mean(jnp.square(data.h))
+        grad_norm = jnp.linalg.norm(data.grad)
+        print(
+            f"Iter {data.k}: cost = {data.f:.4f}, cons = {cons_viol:.4f}, "
+            f"lagrangian = {data.lagrangian:.4f}, grad = {grad_norm:.4f}, "
+            f"time = {datetime.now() - start_time}"
+        )
 
     return data
