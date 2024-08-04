@@ -21,21 +21,20 @@ def optimize() -> None:
 
     # Set the solver options
     options = SolverOptions(
-        num_iters=20000,
+        num_iters=1000,
         alpha=0.01,
         mu=10.0,
-        rho=0.01,
+        rho=0.1,
         gradient_method="autodiff",
         sigma=0.01,
         num_samples=128,
-        method="diffusion",
+        # method="gradient_descent",
+        method="bfgs",
         initial_noise_level=0.1,
     )
 
     # Solve from a zero initial guess
-    sol = solve_verbose(
-        prob, options, jnp.zeros(prob.num_vars), print_every=1000
-    )
+    sol = solve_verbose(prob, options, jnp.zeros(prob.num_vars), print_every=10)
 
     # Plot the solution
     xs, us = prob.unflatten(sol.x)
@@ -150,6 +149,6 @@ def animate() -> None:
 
 
 if __name__ == "__main__":
-    # optimize()
-    optimize_parallel()
+    optimize()
+    # optimize_parallel()
     # animate()
