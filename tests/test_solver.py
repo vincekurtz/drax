@@ -32,8 +32,8 @@ def test_solve() -> None:
     """Test the basic mechanics of the solver."""
     prob = PendulumSwingup(horizon=20, x_init=jnp.array([3.1, 0.0]))
     guess = jnp.zeros(prob.num_vars)
-    warm_start = make_warm_start(prob, guess)
     options = SolverOptions(num_iters=100)
+    warm_start = make_warm_start(prob, options, guess)
 
     # Run the standard solve
     sol1 = solve(prob, options, warm_start)
@@ -68,7 +68,8 @@ def test_sampling_gradient() -> None:
     """Test our sampling-based gradient approximation."""
     prob = PendulumSwingup(horizon=10, x_init=jnp.array([3.1, 0.0]))
     guess = jnp.zeros(prob.num_vars)
-    data = make_warm_start(prob, guess)
+    options = SolverOptions()
+    data = make_warm_start(prob, options, guess)
 
     # Compute the gradient using autodiff
     options = SolverOptions(gradient_method="autodiff")
@@ -100,6 +101,23 @@ def test_sampling_gradient() -> None:
     assert err < 1.0
 
 
+def test_diffusion() -> None:
+    """Test optimization with the diffusion method."""
+    prob = PendulumSwingup(horizon=20, x_init=jnp.array([3.1, 0.0]))
+    options = SolverOptions(num_iters=1000, method="diffusion")
+
+    # Solve verbosely
+    guess = jnp.zeros(prob.num_vars)
+    sol = solve_verbose(prob, options, guess, print_every=100)
+
+    # Solve quietly
+    data = make_warm_start(prob, options, guess)
+    sol2 = solve(prob, options, data)
+
+    assert _is_same_solver_data(sol, sol2)
+
+
 if __name__ == "__main__":
     test_solve()
     test_sampling_gradient()
+    test_diffusion()

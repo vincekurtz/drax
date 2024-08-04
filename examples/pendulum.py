@@ -29,11 +29,12 @@ def optimize() -> None:
         sigma=0.01,
         num_samples=128,
         method="diffusion",
+        initial_noise_level=0.1,
     )
 
     # Solve from a zero initial guess
     sol = solve_verbose(
-        prob, options, jnp.zeros(prob.num_vars), print_every=50000
+        prob, options, jnp.zeros(prob.num_vars), print_every=1000
     )
 
     # Plot the solution
@@ -61,16 +62,13 @@ def optimize_parallel() -> None:
     # Set the solver options
     options = SolverOptions(
         num_iters=20000,
-        alpha=0.01,
-        mu=10.0,
-        rho=0.01,
         gradient_method="autodiff",
     )
 
     # Set up an optimization function that maps x0 -> solution
     def optimize_single(x_init: jnp.ndarray) -> jnp.ndarray:
         prob = PendulumSwingup(horizon=50, x_init=x_init)
-        warm_start = make_warm_start(prob, jnp.zeros(prob.num_vars))
+        warm_start = make_warm_start(prob, options, jnp.zeros(prob.num_vars))
         sol = solve(prob, options, warm_start)
         return prob.unflatten(sol.x)
 
@@ -107,12 +105,15 @@ def animate() -> None:
         gradient_method="sampling",
         sigma=0.01,
         num_samples=128,
+        method="diffusion",
+        initial_noise_level=1.0,
     )
 
     # Create random initial guesses
     def initialize(rng: jnp.ndarray) -> jnp.ndarray:
         return make_warm_start(
             prob,
+            options,
             jax.random.uniform(rng, (prob.num_vars,), minval=-6.0, maxval=6.0),
         )
 
@@ -149,6 +150,6 @@ def animate() -> None:
 
 
 if __name__ == "__main__":
-    optimize()
-    # optimize_parallel()
+    # optimize()
+    optimize_parallel()
     # animate()

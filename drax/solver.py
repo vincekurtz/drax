@@ -11,6 +11,9 @@ class SolverOptions(NamedTuple):
     """Object holding optimizer parameters.
 
     Parameters:
+        method: Solver method to use. Must be one of:
+            "gradient_descent" - standard vanilla gradient descent.
+            "diffusion" - equality constrained Langevin diffusion.
         num_iters: The total number of iterations to run.
         alpha: The step size.
         mu: The augmented Lagrangian penalty parameter.
@@ -18,11 +21,11 @@ class SolverOptions(NamedTuple):
         gradient_method: How to compute gradients ("autodiff" or "sampling").
         sigma: Variance for sampling-based gradient estimation.
         num_samples: Number of samples for sampling-based gradient estimation.
-        method: How to update decision variables. Must be one of:
-            "gradient_descent" - standard vanilla gradient descent.
-            "diffusion" - equality constrained Langevin diffusion.
+        initial_noise_level: Initial noise level for the diffusion method.
+        seed: Random number generator seed.
     """
 
+    method: str = "gradient_descent"
     num_iters: int = 5000
     alpha: float = 0.01
     mu: float = 10.0
@@ -30,7 +33,8 @@ class SolverOptions(NamedTuple):
     gradient_method: str = "autodiff"
     sigma: float = 0.01
     num_samples: int = 128
-    method: str = "gradient_descent"
+    initial_noise_level: float = 0.1
+    seed: int = 0
 
 
 class SolverData(NamedTuple):
@@ -44,6 +48,8 @@ class SolverData(NamedTuple):
         h: The constraint residuals at the current iteration.
         grad: The gradient of the Lagrangian w.r.t. x at the current iteration.
         lagrangian: The augmented Lagrangian at the current iteration.
+        noise_decay_factor: Noise decay factor for the diffusion method. Noise
+            level is computed as σₖ = σ₀ * exp(-noise_decay_factor * k).
         rng: The random number generator state.
 
     """
@@ -55,6 +61,7 @@ class SolverData(NamedTuple):
     h: jnp.ndarray
     grad: jnp.ndarray
     lagrangian: jnp.ndarray
+    noise_decay_factor: float
     rng: jnp.ndarray
 
 
@@ -190,11 +197,10 @@ def _calc_update_diffusion(
     """
     rng, noise_rng = jax.random.split(data.rng)
     noise = jax.random.normal(noise_rng, data.x.shape)
-    noise_level = jnp.exp(-3 * data.k / options.num_iters)
+    noise_level = options.initial_noise_level * jnp.exp(
+        -data.k * data.noise_decay_factor
+    )
     noise_level *= jnp.sqrt(2 * options.alpha)  # Euler-Maruyama discretization
-
-    # TODO: set the annealing schedule in a more principled way
-    # TODO: fix the annealing schedule in solve_verbose
 
     x = data.x - options.alpha * data.grad + noise_level * noise
     lmbda = data.lmbda + options.alpha * options.mu * data.h
@@ -230,7 +236,7 @@ def optimizer_step(
     elif options.method == "diffusion":
         data = _calc_update_diffusion(data, prob, options)
     else:
-        raise ValueError(f"Unknown solve method: {options.solve_method}")
+        raise ValueError(f"Unknown solve method: {options.method}")
 
     # Clip to the feasible region. This should be a no-op if the log barrier
     # is working, but that sometimes needs to be relaxed.
@@ -245,14 +251,14 @@ def optimizer_step(
 
 
 def make_warm_start(
-    prob: NonlinearProgram, guess: jnp.ndarray, seed: int = 0
+    prob: NonlinearProgram, options: SolverOptions, guess: jnp.ndarray
 ) -> SolverData:
     """Initialize solver data from an initial guess for x.
 
     Args:
         prob: The nonlinear program to solve.
+        options: The optimizer parameters.
         guess: The initial guess for the decision variables x
-        seed: The random seed to use for the random number generator.
 
     Returns:
         Full initial solver data, including lagrange multipliers, etc.
@@ -266,7 +272,8 @@ def make_warm_start(
         h=h,
         grad=jnp.zeros_like(guess),
         lagrangian=0.0,
-        rng=jax.random.key(0),
+        noise_decay_factor=4.0 / options.num_iters,
+        rng=jax.random.key(options.seed),
     )
 
 
@@ -306,7 +313,7 @@ def solve_verbose(
     Returns:
         The solution, including decision variables and other data.
     """
-    data = make_warm_start(prob, guess)
+    data = make_warm_start(prob, options, guess)
 
     # Determine how many iterations to run between printouts
     print_every = min(options.num_iters, print_every)
