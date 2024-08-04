@@ -28,11 +28,12 @@ def optimize() -> None:
         gradient_method="autodiff",
         sigma=0.01,
         num_samples=128,
+        method="diffusion",
     )
 
     # Solve from a zero initial guess
     sol = solve_verbose(
-        prob, options, jnp.zeros(prob.num_vars), print_every=5000
+        prob, options, jnp.zeros(prob.num_vars), print_every=50000
     )
 
     # Plot the solution
@@ -148,6 +149,6 @@ def animate() -> None:
 
 
 if __name__ == "__main__":
-    # optimize()
+    optimize()
     # optimize_parallel()
-    animate()
+    # animate()

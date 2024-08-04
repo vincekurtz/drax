@@ -18,6 +18,9 @@ class SolverOptions(NamedTuple):
         gradient_method: How to compute gradients ("autodiff" or "sampling").
         sigma: Variance for sampling-based gradient estimation.
         num_samples: Number of samples for sampling-based gradient estimation.
+        method: How to update decision variables. Must be one of:
+            "gradient_descent" - standard vanilla gradient descent.
+            "diffusion" - equality constrained Langevin diffusion.
     """
 
     num_iters: int = 5000
@@ -27,6 +30,7 @@ class SolverOptions(NamedTuple):
     gradient_method: str = "autodiff"
     sigma: float = 0.01
     num_samples: int = 128
+    method: str = "gradient_descent"
 
 
 class SolverData(NamedTuple):
@@ -142,6 +146,62 @@ def _calc_gradient_data_sampling(
     return data._replace(f=f, h=h, grad=grad, lagrangian=lagrangian, rng=rng)
 
 
+def _calc_update_gradient_descent(
+    data: SolverData, prob: NonlinearProgram, options: SolverOptions
+) -> SolverData:
+    """Update decision variables and Lagrange multipliers via gradient descent.
+
+        x = x - α ∂L/∂x,
+        λ = λ + α μ ∂L/∂λ.
+
+    Args:
+        data: The current iteration data.
+        prob: The nonlinear program to solve.
+        options: The optimizer parameters.
+
+    Returns:
+        Updated iteration data with the new x and λ.
+    """
+    x = data.x - options.alpha * data.grad
+    lmbda = data.lmbda + options.alpha * options.mu * data.h
+    return data._replace(x=x, lmbda=lmbda)
+
+
+def _calc_update_diffusion(
+    data: SolverData, prob: NonlinearProgram, options: SolverOptions
+) -> SolverData:
+    """Update decision variables with a constrained diffusion process.
+
+    Flows the decision variables according to the Langevin dynamics
+
+            ẋ = -∂L/∂x + σₖξ,
+            λ̇ = ∂L/∂λ.
+
+    where ξ ~ N(0, I) is a standard normal random variable and σₖ is an annealed
+    noise level.
+
+    Args:
+        data: The current iteration data.
+        prob: The nonlinear program to solve.
+        options: The optimizer parameters.
+
+    Returns:
+        Updated iteration data with the new x and λ.
+    """
+    rng, noise_rng = jax.random.split(data.rng)
+    noise = jax.random.normal(noise_rng, data.x.shape)
+    noise_level = jnp.exp(-3 * data.k / options.num_iters)
+    noise_level *= jnp.sqrt(2 * options.alpha)  # Euler-Maruyama discretization
+
+    # TODO: set the annealing schedule in a more principled way
+    # TODO: fix the annealing schedule in solve_verbose
+
+    x = data.x - options.alpha * data.grad + noise_level * noise
+    lmbda = data.lmbda + options.alpha * options.mu * data.h
+
+    return data._replace(x=x, lmbda=lmbda, rng=rng)
+
+
 def optimizer_step(
     data: SolverData, prob: NonlinearProgram, options: SolverOptions
 ) -> SolverData:
@@ -164,24 +224,24 @@ def optimizer_step(
     else:
         raise ValueError(f"Unknown gradient method: {options.gradient_method}")
 
-    # Flow the decision variable and Lagrange multiplier according to
-    #   ẋ = -∂L/∂x,
-    #   λ̇ = ∂L/∂λ
-    # See Platt and Barr, "Constrained Differential Optimization",
-    # NeurIPS 1987 for more details.
-    x = data.x - options.alpha * data.grad
-    lmbda = data.lmbda + options.alpha * options.mu * data.h
+    # Update the decision variables x and Lagrange multipliers λ.
+    if options.method == "gradient_descent":
+        data = _calc_update_gradient_descent(data, prob, options)
+    elif options.method == "diffusion":
+        data = _calc_update_diffusion(data, prob, options)
+    else:
+        raise ValueError(f"Unknown solve method: {options.solve_method}")
 
     # Clip to the feasible region. This should be a no-op if the log barrier
     # is working, but that sometimes needs to be relaxed.
-    x = x.at[prob.bounded_below].set(
-        jnp.maximum(x[prob.bounded_below], prob.lower)
+    x = data.x.at[prob.bounded_below].set(
+        jnp.maximum(data.x[prob.bounded_below], prob.lower)
     )
     x = x.at[prob.bounded_above].set(
         jnp.minimum(x[prob.bounded_above], prob.upper)
     )
 
-    return data._replace(k=data.k + 1, x=x, lmbda=lmbda)
+    return data._replace(k=data.k + 1, x=x)
 
 
 def make_warm_start(
