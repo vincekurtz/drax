@@ -267,11 +267,17 @@ def _calc_update_bfgs(
         lambda x: _calc_lagrangian(x, data.lmbda, prob, options)[0]
     )(x)
     y = grad_next - data.grad
-    rho = 1.0 / jnp.dot(y, s)  # TODO: damped BFGS update
+    rho = 1.0 / jnp.dot(y, s)
     I = jnp.eye(data.x.size)  # noqa: E741
-    H = (I - rho * s[:, None] @ y[None, :]) @ data.H @ (
-        I - rho * y[:, None] @ s[None, :]
-    ) + rho * s[:, None] @ s[None, :]
+
+    H = jnp.where(
+        1e5,  # Ignore the update if yᵀs is too small
+        (I - rho * s[:, None] @ y[None, :])
+        @ data.H
+        @ (I - rho * y[:, None] @ s[None, :])
+        + rho * s[:, None] @ s[None, :],
+        data.H,
+    )
 
     # Update the Lagrange multipliers
     lmbda = data.lmbda + options.alpha * options.mu * data.h

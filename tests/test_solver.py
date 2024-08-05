@@ -131,7 +131,7 @@ def test_bfgs() -> None:
 
 
 if __name__ == "__main__":
-    # test_solve()
-    # test_sampling_gradient()
-    # test_diffusion()
+    test_solve()
+    test_sampling_gradient()
+    test_diffusion()
     test_bfgs()

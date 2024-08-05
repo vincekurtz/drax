@@ -21,14 +21,13 @@ def optimize() -> None:
 
     # Set the solver options
     options = SolverOptions(
-        num_iters=1000,
+        num_iters=500,
         alpha=0.01,
         mu=10.0,
         rho=0.01,
         gradient_method="autodiff",
         sigma=0.01,
         num_samples=128,
-        # method="gradient_descent",
         method="bfgs",
         initial_noise_level=0.1,
     )
