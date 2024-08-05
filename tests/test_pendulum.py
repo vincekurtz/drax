@@ -26,8 +26,6 @@ def test_ocp() -> None:
     assert ell.shape == ()
     phi = prob.terminal_cost(x)
     assert phi.shape == ()
-    g = prob.constraints(x, u)
-    assert g.shape == (0,)
 
     # Generic NLP methods
     assert prob.nx == 2

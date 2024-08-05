@@ -48,10 +48,6 @@ class PendulumSwingup(OptimalControlProblem):
         theta, theta_dot = x
         return 10 * theta**2 + 1 * theta_dot**2
 
-    def constraints(self, x: jnp.ndarray, u: jnp.ndarray) -> jnp.ndarray:
-        """Additional constraints g(xₜ, uₜ) ≤ 0."""
-        return jnp.zeros(0)  # there are no constraints, return an empty array
-
     def plot_scenario(self) -> None:
         """Make a vector field plot on the current matplotlib axes."""
         theta_range = (-1.5 * jnp.pi, 1.5 * jnp.pi)

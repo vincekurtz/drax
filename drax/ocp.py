@@ -14,7 +14,6 @@ class OptimalControlProblem(NonlinearProgram, ABC):
 
         min_{x, u} ∑ₜ ℓ(xₜ, uₜ) + ϕ(x_T)
         s.t. xₜ₊₁ = f(xₜ, uₜ)
-             g(xₜ, uₜ) ≤ 0
              x_min ≤ xₜ ≤ x_max
              u_min ≤ uₜ ≤ u_max
              x₀ = x_init
@@ -58,7 +57,7 @@ class OptimalControlProblem(NonlinearProgram, ABC):
 
         # Total number of decision variables (state and control variables).
         # Note that the initial state x₀ is fixed and not a decision variable.
-        # TODO: support inequality constraints via slack variables
+        # TODO: support additional inequality constraints via slack variables
         num_vars = (nx + nu) * (horizon - 1)
 
         # Tile the bounds to cover all decision variables.
@@ -81,19 +80,6 @@ class OptimalControlProblem(NonlinearProgram, ABC):
 
         Returns:
             The next state xₜ₊₁.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def constraints(self, x: jnp.ndarray, u: jnp.ndarray) -> jnp.ndarray:
-        """The inequality constraints g(x, u) <= 0.
-
-        Args:
-            x: The state variables.
-            u: The control variables.
-
-        Returns:
-            A vector of inequality constraint values g(x, u).
         """
         raise NotImplementedError
 
@@ -167,5 +153,6 @@ class OptimalControlProblem(NonlinearProgram, ABC):
         x_next = xs[1:]
         dynamics_residual = (x_pred - x_next).flatten()
 
-        # TODO: support inequality constraints via slack variables
+        # TODO: support additional inequality constraints g(x, u) ≤ 0
+        # TODO: support additional equality constraints h(x, u) = 0
         return dynamics_residual
