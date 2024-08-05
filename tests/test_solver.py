@@ -7,8 +7,8 @@ from drax.solver import (
     SolverOptions,
     _calc_gradient_data_autodiff,
     _calc_gradient_data_sampling,
+    _optimizer_step,
     make_warm_start,
-    optimizer_step,
     solve,
     solve_verbose,
 )
@@ -47,7 +47,7 @@ def test_solve() -> None:
     assert _is_same_solver_data(sol1, sol2)
 
     # Step through the solve manually
-    jit_step = jax.jit(optimizer_step, static_argnums=(1, 2))
+    jit_step = jax.jit(_optimizer_step, static_argnums=(1, 2))
     sol3 = warm_start
     for _ in range(options.num_iters):
         sol3 = jit_step(sol3, prob, options)
@@ -117,7 +117,21 @@ def test_diffusion() -> None:
     assert _is_same_solver_data(sol, sol2)
 
 
+def test_bfgs() -> None:
+    """Test optimization with the BFGS quasi-Newton method."""
+    prob = PendulumSwingup(horizon=20, x_init=jnp.array([3.1, 0.0]))
+    options = SolverOptions(num_iters=1000, method="bfgs")
+
+    guess = jnp.zeros(prob.num_vars)
+    sol = solve_verbose(prob, options, guess, print_every=100)
+
+    assert sol.k == options.num_iters
+    assert jnp.mean(jnp.square(sol.h)) < 0.1
+    assert jnp.mean(jnp.square(sol.grad)) < 0.1
+
+
 if __name__ == "__main__":
     test_solve()
     test_sampling_gradient()
     test_diffusion()
+    test_bfgs()

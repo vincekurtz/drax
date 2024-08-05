@@ -14,6 +14,7 @@ class SolverOptions(NamedTuple):
         method: Solver method to use. Must be one of:
             "gradient_descent" - standard vanilla gradient descent.
             "diffusion" - equality constrained Langevin diffusion.
+            "bfgs" - BFGS quasi-Newton method.
         num_iters: The total number of iterations to run.
         alpha: The step size.
         mu: The augmented Lagrangian penalty parameter.
@@ -46,6 +47,7 @@ class SolverData(NamedTuple):
         lmbda: The Lagrange multipliers at the current iteration.
         f: The cost at the current iteration.
         h: The constraint residuals at the current iteration.
+        H: The Hessian approximation at the current iteration.
         grad: The gradient of the Lagrangian w.r.t. x at the current iteration.
         lagrangian: The augmented Lagrangian at the current iteration.
         noise_decay_factor: Noise decay factor for the diffusion method. Noise
@@ -60,6 +62,7 @@ class SolverData(NamedTuple):
     f: jnp.ndarray
     h: jnp.ndarray
     grad: jnp.ndarray
+    H: jnp.ndarray
     lagrangian: jnp.ndarray
     noise_decay_factor: float
     rng: jnp.ndarray
@@ -208,7 +211,82 @@ def _calc_update_diffusion(
     return data._replace(x=x, lmbda=lmbda, rng=rng)
 
 
-def optimizer_step(
+def _linesearch(
+    x: jnp.ndarray,
+    p: jnp.ndarray,
+    lmbda: jnp.ndarray,
+    prob: NonlinearProgram,
+    options: SolverOptions,
+) -> jnp.ndarray:
+    """Perform a parallel line search on the Lagrangian.
+
+    Approximately solves
+
+        min_{α} L(x + αp, λ).
+
+    Args:
+        x: The current decision variables.
+        p: The search direction.
+        lmbda: The current Lagrange multipliers.
+        prob: The nonlinear program to solve.
+        options: The optimizer parameters.
+
+    Returns:
+        The step size α.
+    """
+    # TODO: choose candidates more intelligently
+    # TODO: check convergence conditions
+    candidates = jnp.array([0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0])
+    L = lambda x: _calc_lagrangian(x, lmbda, prob, options)[0]
+    costs = jax.vmap(L)(x + candidates[:, None] * p)
+    return candidates[jnp.argmin(costs)]
+
+
+def _calc_update_bfgs(
+    data: SolverData, prob: NonlinearProgram, options: SolverOptions
+) -> SolverData:
+    """Update decision variables via BFGS + augmented Lagrangian.
+
+    Args:
+        data: The current iteration data.
+        prob: The nonlinear program to solve.
+        options: The optimizer parameters.
+
+    Returns:
+        Updated iteration data with the new x, λ, and Hessian approximation.
+    """
+    # Update the decision variables
+    p = -data.H @ data.grad
+    alpha = _linesearch(data.x, p, data.lmbda, prob, options)
+    s = alpha * p
+    x = data.x + s
+
+    # Update the Hessian approximation
+    # TODO: avoid re-computing this gradient, and give an option for using
+    # the sampling-based version.
+    grad_next = jax.grad(
+        lambda x: _calc_lagrangian(x, data.lmbda, prob, options)[0]
+    )(x)
+    y = grad_next - data.grad
+    rho = 1.0 / jnp.dot(y, s)
+    I = jnp.eye(data.x.size)  # noqa: E741
+
+    H = jnp.where(
+        1e5,  # Ignore the update if yᵀs is too small
+        (I - rho * s[:, None] @ y[None, :])
+        @ data.H
+        @ (I - rho * y[:, None] @ s[None, :])
+        + rho * s[:, None] @ s[None, :],
+        data.H,
+    )
+
+    # Update the Lagrange multipliers
+    lmbda = data.lmbda + options.alpha * options.mu * data.h
+
+    return data._replace(x=x, lmbda=lmbda, H=H)
+
+
+def _optimizer_step(
     data: SolverData, prob: NonlinearProgram, options: SolverOptions
 ) -> SolverData:
     """Take a single optimizer step.
@@ -235,6 +313,8 @@ def optimizer_step(
         data = _calc_update_gradient_descent(data, prob, options)
     elif options.method == "diffusion":
         data = _calc_update_diffusion(data, prob, options)
+    elif options.method == "bfgs":
+        data = _calc_update_bfgs(data, prob, options)
     else:
         raise ValueError(f"Unknown solve method: {options.method}")
 
@@ -271,6 +351,7 @@ def make_warm_start(
         f=0.0,
         h=h,
         grad=jnp.zeros_like(guess),
+        H=jnp.eye(guess.size),
         lagrangian=0.0,
         noise_decay_factor=4.0 / options.num_iters,
         rng=jax.random.key(options.seed),
@@ -291,7 +372,7 @@ def solve(
         The solution, including decision variables and other data.
     """
     # TODO: use while loop and add early termination for errors
-    scan_fn = lambda data, _: (optimizer_step(data, prob, options), None)
+    scan_fn = lambda data, _: (_optimizer_step(data, prob, options), None)
     data, _ = jax.lax.scan(scan_fn, data, jnp.arange(options.num_iters))
     return data
 
