@@ -210,6 +210,37 @@ def _calc_update_diffusion(
     return data._replace(x=x, lmbda=lmbda, rng=rng)
 
 
+def _linesearch(
+    x: jnp.ndarray,
+    p: jnp.ndarray,
+    lmbda: jnp.ndarray,
+    prob: NonlinearProgram,
+    options: SolverOptions,
+) -> jnp.ndarray:
+    """Perform a parallel line search on the Lagrangian.
+
+    Approximately solves
+
+        min_{α} L(x + αp, λ).
+
+    Args:
+        x: The current decision variables.
+        p: The search direction.
+        lmbda: The current Lagrange multipliers.
+        prob: The nonlinear program to solve.
+        options: The optimizer parameters.
+
+    Returns:
+        The step size α.
+    """
+    # TODO: choose candidates more intelligently
+    # TODO: check convergence conditions
+    candidates = jnp.array([0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0])
+    L = lambda x: _calc_lagrangian(x, lmbda, prob, options)[0]
+    costs = jax.vmap(L)(x + candidates[:, None] * p)
+    return candidates[jnp.argmin(costs)]
+
+
 def _calc_update_bfgs(
     data: SolverData, prob: NonlinearProgram, options: SolverOptions
 ) -> SolverData:
@@ -225,7 +256,8 @@ def _calc_update_bfgs(
     """
     # Update the decision variables
     p = -data.H @ data.grad
-    s = options.alpha * p  # TODO: use a proper linesearch
+    alpha = _linesearch(data.x, p, data.lmbda, prob, options)
+    s = alpha * p
     x = data.x + s
 
     # Update the Hessian approximation

@@ -24,7 +24,7 @@ def optimize() -> None:
         num_iters=1000,
         alpha=0.01,
         mu=10.0,
-        rho=0.1,
+        rho=0.01,
         gradient_method="autodiff",
         sigma=0.01,
         num_samples=128,
@@ -34,7 +34,9 @@ def optimize() -> None:
     )
 
     # Solve from a zero initial guess
-    sol = solve_verbose(prob, options, jnp.zeros(prob.num_vars), print_every=10)
+    sol = solve_verbose(
+        prob, options, jnp.zeros(prob.num_vars), print_every=100
+    )
 
     # Plot the solution
     xs, us = prob.unflatten(sol.x)
