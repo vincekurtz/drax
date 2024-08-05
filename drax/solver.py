@@ -14,6 +14,7 @@ class SolverOptions(NamedTuple):
         method: Solver method to use. Must be one of:
             "gradient_descent" - standard vanilla gradient descent.
             "diffusion" - equality constrained Langevin diffusion.
+            "bfgs" - BFGS quasi-Newton method.
         num_iters: The total number of iterations to run.
         alpha: The step size.
         mu: The augmented Lagrangian penalty parameter.
