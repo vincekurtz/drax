@@ -206,7 +206,7 @@ def _calc_update_diffusion(
     noise_level *= jnp.sqrt(2 * options.alpha)  # Euler-Maruyama discretization
 
     x = data.x - options.alpha * data.grad + noise_level * noise
-    lmbda = data.lmbda + options.alpha * options.mu * data.h
+    lmbda = data.lmbda + options.alpha * data.h
 
     return data._replace(x=x, lmbda=lmbda, rng=rng)
 
