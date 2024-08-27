@@ -73,6 +73,6 @@ def test_solve() -> None:
 
 
 if __name__ == "__main__":
-    # test_setup()
-    # test_plot()
+    test_setup()
+    test_plot()
     test_solve()
