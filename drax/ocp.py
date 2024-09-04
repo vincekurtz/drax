@@ -115,7 +115,7 @@ class OptimalControlProblem(NonlinearProgram, ABC):
             vars: vector of states and controls at each time step
 
         Returns:
-            An array of states [x₀, x₁, ... x_T], size (horizon, nz)
+            An array of states [x₀, x₁, ... x_T], size (horizon, nx)
             An array of controls [u₀, u₁, ..., u_T-1], size (horizon - 1, nu)
         """
         nx_vars = self.nx * (self.horizon - 1)

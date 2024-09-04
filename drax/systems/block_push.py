@@ -1,6 +1,10 @@
+import time
+
 import jax
 import jax.numpy as jnp
 import mujoco
+import mujoco.viewer
+import numpy as np
 from mujoco import mjx
 
 from drax import ROOT
@@ -10,7 +14,7 @@ from drax.ocp import OptimalControlProblem
 class BlockPush(OptimalControlProblem):
     """A block pushing problem."""
 
-    def __init__(self, horizon: int):
+    def __init__(self, horizon: int, target: jnp.ndarray = None):
         """Initialize the block pushing problem.
 
         This system has 10 state variables:
@@ -24,12 +28,12 @@ class BlockPush(OptimalControlProblem):
 
         Args:
             horizon: The number of time steps T.
-            x_init: The initial state x₀.
+            target: (optional) The target block position.
         """
         # Create the mjx model
         model_path = ROOT + "/systems/block_push.xml"
-        mj_model = mujoco.MjModel.from_xml_path(model_path)
-        self.mjx_model = mjx.put_model(mj_model)
+        self.mj_model = mujoco.MjModel.from_xml_path(model_path)
+        self.mjx_model = mjx.put_model(self.mj_model)
 
         # State and control constraints
         x_min = jnp.array([-jnp.inf for _ in range(10)])
@@ -41,9 +45,11 @@ class BlockPush(OptimalControlProblem):
         x_init = jnp.zeros(10)
 
         # Target state
-        self.x_target = jnp.array(
-            [0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        )
+        self.x_target = target
+        if target is None:
+            self.x_target = jnp.array(
+                [0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            )
 
         # Cost matrices
         self.Q = jnp.diag(
@@ -75,3 +81,37 @@ class BlockPush(OptimalControlProblem):
         """The terminal cost ϕ(x_T)."""
         x_err = x - self.x_target
         return jnp.sum(x_err @ self.Q @ x_err)
+
+    def visualize_trajectory(self, xs: jnp.ndarray, us: jnp.ndarray) -> None:
+        """Visualize the trajectory in the Mujoco viewer."""
+        # Convert to numpy arrays
+        xs = np.array(xs)
+        us = np.array(us)
+        mj_data = mujoco.MjData(self.mj_model)
+        dt = float(self.mj_model.opt.timestep)
+
+        # Run the "simulation", which just visualizes the trajectory
+        t = 0
+        with mujoco.viewer.launch_passive(self.mj_model, mj_data) as viewer:
+            while viewer.is_running():
+                start_time = time.time()
+
+                # Update the position
+                mj_data.qpos = xs[t, :5]
+                mj_data.qvel = xs[t, 5:]
+                mj_data.ctrl = us[t]
+
+                # Update the viewer
+                mujoco.mj_forward(self.mj_model, mj_data)
+                viewer.sync()
+
+                # Try to run in realtime
+                elapsed_time = time.time() - start_time
+                if elapsed_time < dt:
+                    time.sleep(dt - elapsed_time)
+
+                # Loop over the trajectory
+                t += 1
+                if t == len(xs):
+                    time.sleep(1.0)
+                    t = 0
