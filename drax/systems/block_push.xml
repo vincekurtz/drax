@@ -1,6 +1,6 @@
 <mujoco>
   <!-- Coarse physics -->
-  <option timestep="0.01" iterations="1" ls_iterations="4"/>
+  <option timestep="0.01" iterations="4" ls_iterations="10"/>
 
   <!-- Texture assets -->
   <asset>
@@ -19,9 +19,9 @@
 
     <!-- Block -->
     <body pos="0 0 0.05">
-      <joint type="slide" axis="1 0 0" frictionloss="100.0"/>
-      <joint type="slide" axis="0 1 0" frictionloss="100.0"/>
-      <joint type="hinge" axis="0 0 1" frictionloss="10.0"/>
+      <joint type="slide" axis="1 0 0" damping="1.0"/>
+      <joint type="slide" axis="0 1 0" damping="1.0"/>
+      <joint type="hinge" axis="0 0 1" damping="0.1"/>
       <geom type="box" size=".3 .2 .05" rgba="0 0.9 0 1" mass="0.01"/>
     </body>
 
@@ -31,7 +31,6 @@
       <joint name="pusher_y" type="slide" axis="0 1 0"/>
       <geom type="sphere" size=".03" rgba="0.9 0 0 1"/>
     </body>
-
   </worldbody>
 
   <!-- Position actuators for the pusher-->
