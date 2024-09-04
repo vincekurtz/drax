@@ -1,0 +1,42 @@
+<mujoco>
+  <!-- Coarse physics -->
+  <option timestep="0.01" iterations="1" ls_iterations="4"/>
+
+  <!-- Texture assets -->
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3"
+      markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+  </asset>
+
+  <worldbody>
+    <!-- Lighting -->
+    <light diffuse=".5 .5 .5" pos="0 0 3" dir="0 0 -1"/>
+
+    <!-- Floor (visual only) -->
+    <geom name="floor" size="0 0 .125" type="plane" material="groundplane" contype="0" conaffinity="0"/>
+
+    <!-- Block -->
+    <body pos="0 0 0.05">
+      <joint type="slide" axis="1 0 0" frictionloss="100.0"/>
+      <joint type="slide" axis="0 1 0" frictionloss="100.0"/>
+      <joint type="hinge" axis="0 0 1" frictionloss="10.0"/>
+      <geom type="box" size=".3 .2 .05" rgba="0 0.9 0 1" mass="0.01"/>
+    </body>
+
+    <!-- Pusher -->
+    <body pos="0.0 -0.3 0.05">
+      <joint name="pusher_x" type="slide" axis="1 0 0"/>
+      <joint name="pusher_y" type="slide" axis="0 1 0"/>
+      <geom type="sphere" size=".03" rgba="0.9 0 0 1"/>
+    </body>
+
+  </worldbody>
+
+  <!-- Position actuators for the pusher-->
+   <actuator>
+     <position name="pusher_x" joint="pusher_x" kp="10" dampratio="1" ctrllimited="true" ctrlrange="-1.5 1.5"/>
+     <position name="pusher_y" joint="pusher_y" kp="10" dampratio="1" ctrllimited="true" ctrlrange="-1.5 1.5"/>
+   </actuator>
+</mujoco>
