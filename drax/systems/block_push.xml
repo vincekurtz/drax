@@ -1,6 +1,6 @@
 <mujoco>
   <!-- Coarse physics -->
-  <option timestep="0.01" iterations="1" ls_iterations="10"/>
+  <option timestep="0.05" iterations="10" ls_iterations="10"/>
 
   <!-- Texture assets -->
   <asset>
