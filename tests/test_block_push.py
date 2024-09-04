@@ -54,14 +54,20 @@ def test_solve() -> None:
 
     rng = jax.random.key(0)
     rng, guess_rng = jax.random.split(rng)
-    guess = 0.0 * jax.random.uniform(guess_rng, (prob.num_vars,))
+    guess = 1.0 * jax.random.uniform(guess_rng, (prob.num_vars,))
     options = SolverOptions(
-        num_iters=100,
         method="diffusion",
+        num_iters=10000,
+        alpha=0.001,
+        mu=10.0,
         gradient_method="sampling",
+        sigma=0.001,
+        num_samples=512,
+        initial_noise_level=0.1,
+        seed=0,
     )
 
-    data = solve_verbose(prob, options, guess, print_every=1)
+    data = solve_verbose(prob, options, guess, print_every=100)
     sol = data.x
     assert sol.shape == (prob.num_vars,)
 

@@ -38,8 +38,8 @@ class BlockPush(OptimalControlProblem):
         # State and control constraints
         x_min = jnp.array([-jnp.inf for _ in range(10)])
         x_max = jnp.array([jnp.inf for _ in range(10)])
-        u_min = jnp.array([-1.5, -1.5])
-        u_max = jnp.array([1.5, 1.5])
+        u_min = jnp.array([-jnp.inf, -jnp.inf])
+        u_max = jnp.array([jnp.inf, jnp.inf])
 
         # Initial state
         x_init = jnp.zeros(10)
@@ -53,9 +53,9 @@ class BlockPush(OptimalControlProblem):
 
         # Cost matrices
         self.Q = jnp.diag(
-            jnp.array([1.0, 1.0, 1.0, 0.0, 0.0, 0.1, 0.1, 0.1, 0.0, 0.0])
+            jnp.array([1.0, 1.0, 1.0, 0.0, 0.0, 0.1, 0.1, 0.1, 0.1, 0.1])
         )
-        self.R = jnp.diag(jnp.array([0.001, 0.001]))
+        self.R = jnp.diag(jnp.array([1.0, 1.0]))
 
         # Jittable step function
         self._jit_step = jax.jit(lambda data: mjx.step(self.mjx_model, data))
@@ -88,6 +88,7 @@ class BlockPush(OptimalControlProblem):
         xs = np.array(xs)
         mj_data = mujoco.MjData(self.mj_model)
         dt = float(self.mj_model.opt.timestep)
+        dt *= 50
 
         # Run the "simulation", which just visualizes the trajectory
         t = 0

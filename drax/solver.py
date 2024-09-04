@@ -91,10 +91,10 @@ def _calc_lagrangian(
     h = prob.residual(x)
 
     # Add log barrier terms to the cost to enforce l <= x <= u.
-    u_err = jnp.maximum(prob.upper - x[prob.bounded_above], 1e-4)
-    l_err = jnp.maximum(x[prob.bounded_below] - prob.lower, 1e-4)
-    f -= jnp.sum(options.rho * jnp.log(u_err))
-    f -= jnp.sum(options.rho * jnp.log(l_err))
+    # u_err = jnp.maximum(prob.upper - x[prob.bounded_above], 1e-4)
+    # l_err = jnp.maximum(x[prob.bounded_below] - prob.lower, 1e-4)
+    # f -= jnp.sum(options.rho * jnp.log(u_err))
+    # f -= jnp.sum(options.rho * jnp.log(l_err))
 
     L = f + lmbda.T @ h + 0.5 * options.mu * h.T @ h
     return L, (f, h)
