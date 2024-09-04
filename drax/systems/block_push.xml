@@ -1,6 +1,6 @@
 <mujoco>
   <!-- Coarse physics -->
-  <option timestep="0.01" iterations="4" ls_iterations="10"/>
+  <option timestep="0.01" iterations="1" ls_iterations="10"/>
 
   <!-- Texture assets -->
   <asset>
@@ -35,7 +35,7 @@
 
   <!-- Position actuators for the pusher-->
    <actuator>
-     <position name="pusher_x" joint="pusher_x" kp="10" dampratio="1" ctrllimited="true" ctrlrange="-1.5 1.5"/>
-     <position name="pusher_y" joint="pusher_y" kp="10" dampratio="1" ctrllimited="true" ctrlrange="-1.5 1.5"/>
+     <position name="pusher_x" joint="pusher_x" kp="1" dampratio="1" ctrllimited="true" ctrlrange="-1.5 1.5"/>
+     <position name="pusher_y" joint="pusher_y" kp="1" dampratio="1" ctrllimited="true" ctrlrange="-1.5 1.5"/>
    </actuator>
 </mujoco>

@@ -48,7 +48,7 @@ class BlockPush(OptimalControlProblem):
         self.x_target = target
         if target is None:
             self.x_target = jnp.array(
-                [0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+                [0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
             )
 
         # Cost matrices
@@ -82,11 +82,10 @@ class BlockPush(OptimalControlProblem):
         x_err = x - self.x_target
         return jnp.sum(x_err @ self.Q @ x_err)
 
-    def visualize_trajectory(self, xs: jnp.ndarray, us: jnp.ndarray) -> None:
+    def visualize_trajectory(self, xs: jnp.ndarray) -> None:
         """Visualize the trajectory in the Mujoco viewer."""
-        # Convert to numpy arrays
+        # Move everything to CPU
         xs = np.array(xs)
-        us = np.array(us)
         mj_data = mujoco.MjData(self.mj_model)
         dt = float(self.mj_model.opt.timestep)
 
@@ -99,7 +98,6 @@ class BlockPush(OptimalControlProblem):
                 # Update the position
                 mj_data.qpos = xs[t, :5]
                 mj_data.qvel = xs[t, 5:]
-                mj_data.ctrl = us[t]
 
                 # Update the viewer
                 mujoco.mj_forward(self.mj_model, mj_data)

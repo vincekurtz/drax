@@ -44,20 +44,19 @@ def test_vis() -> None:
     prob = BlockPush(horizon=horizon)
     xs = jnp.zeros((horizon, prob.nx))
     xs = xs.at[:, 1].set(jnp.linspace(0.0, 0.5, horizon))
-    us = jnp.zeros((horizon, prob.nu))
     if __name__ == "__main__":
-        prob.visualize_trajectory(xs, us)
+        prob.visualize_trajectory(xs)
 
 
 def test_solve() -> None:
     """Try solving a small problem instance."""
-    prob = BlockPush(horizon=10)
+    prob = BlockPush(horizon=20)
 
     rng = jax.random.key(0)
     rng, guess_rng = jax.random.split(rng)
-    guess = jax.random.uniform(guess_rng, (prob.num_vars,))
+    guess = 0.0 * jax.random.uniform(guess_rng, (prob.num_vars,))
     options = SolverOptions(
-        num_iters=20,
+        num_iters=100,
         method="diffusion",
         gradient_method="sampling",
     )
@@ -66,13 +65,13 @@ def test_solve() -> None:
     sol = data.x
     assert sol.shape == (prob.num_vars,)
 
-    xs, us = prob.unflatten(sol)
-    print(xs.shape)
-    print(xs)
-    breakpoint()
+    xs, _ = prob.unflatten(sol)
+
+    if __name__ == "__main__":
+        prob.visualize_trajectory(xs)
 
 
 if __name__ == "__main__":
     # test_ocp()
-    test_vis()
-    # test_solve()
+    # test_vis()
+    test_solve()
