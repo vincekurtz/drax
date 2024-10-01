@@ -64,4 +64,4 @@ class PendulumSwingup(OptimalControlProblem):
         dX = jax.vmap(jax.vmap(self.dynamics))(X, U) - X
         plt.quiver(X[:, :, 0], X[:, :, 1], dX[:, :, 0], dX[:, :, 1], color="k")
         plt.xlabel("Angle (rad)")
-        plt.ylabel("Angular velocity (rad/s)")
+        plt.ylabel("Velocity (rad/s)")

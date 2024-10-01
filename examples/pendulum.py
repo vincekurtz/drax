@@ -32,18 +32,27 @@ def optimize() -> None:
         initial_noise_level=0.1,
     )
 
-    # Solve from a zero initial guess
+    # Solve from a random initial guess
+    guess = 12 * jax.random.uniform(jax.random.PRNGKey(0), (prob.num_vars,)) - 5
+
     sol = solve_verbose(
         prob, options, jnp.zeros(prob.num_vars), print_every=100
     )
 
     # Plot the solution
+    plt.rcParams.update({"font.size": 14})
+
+    plt.subplot(3, 1, 1)
+    x_guess, _ = prob.unflatten(guess)
+    prob.plot_scenario()
+    plt.plot(x_guess[:, 0], x_guess[:, 1], "ro")
+
     xs, us = prob.unflatten(sol.x)
-    plt.subplot(2, 1, 1)
+    plt.subplot(3, 1, 2)
     prob.plot_scenario()
     plt.plot(xs[:, 0], xs[:, 1], "ro-")
 
-    plt.subplot(2, 1, 2)
+    plt.subplot(3, 1, 3)
     plt.plot(jnp.arange(prob.horizon - 1) * prob.dt, us, "bo-")
     plt.xlabel("Time (s)")
     plt.ylabel("Control Torque (Nm)")
@@ -52,9 +61,49 @@ def optimize() -> None:
     plt.show()
 
 
+def plot_convergence() -> None:
+    """Plot costs and constraint violations over iterations."""
+    prob = PendulumSwingup(horizon=50, x_init=jnp.array([3.1, 0.0]))
+
+    plt.rcParams.update({"font.size": 14})
+
+    for mu in [0.01, 0.1, 1.0, 10.0]:
+        print("mu =", mu)
+        options = SolverOptions(
+            num_iters=100,
+            alpha=0.01,
+            mu=mu,
+            rho=0.01,
+            gradient_method="autodiff",
+            sigma=0.01,
+            num_samples=128,
+            method="diffusion",
+            initial_noise_level=0.1,
+        )
+
+        iters = []
+        constraints = []
+        data = make_warm_start(prob, options, jnp.zeros(prob.num_vars))
+        update_fn = jax.jit(lambda data: solve(prob, options, data))
+        for i in range(500):
+            data = update_fn(data)
+            iters.append((i + 1) * options.num_iters)
+            constraints.append(jnp.mean(jnp.square(data.h)))
+
+        plt.plot(iters, constraints, "-", label=f"$\mu=${mu}", lw=3)
+
+    plt.ylabel("Constraint Violation")
+    plt.yscale("log")
+    plt.xlabel("Iteration")
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
 def optimize_parallel() -> None:
     """Solve a bunch of swingups from different initial conditions."""
-    N = 1024  # number of parallel problems to solve
+    N = 2**15  # number of parallel problems to solve
 
     # Sample a bunch of initial states
     rng = jax.random.PRNGKey(0)
@@ -86,10 +135,10 @@ def optimize_parallel() -> None:
     print(f"Solved {N} problems in {time.time() - st:.2f} s")
 
     # Plot the results
-    PendulumSwingup(10, jnp.zeros(2)).plot_scenario()  # dummy prob for plots
-    for xs_i in xs:
-        plt.plot(xs_i[:, 0], xs_i[:, 1], "bo-", alpha=0.3)
-    plt.show()
+    # PendulumSwingup(10, jnp.zeros(2)).plot_scenario()  # dummy prob for plots
+    # for xs_i in xs:
+    #    plt.plot(xs_i[:, 0], xs_i[:, 1], "bo-", alpha=0.3)
+    # plt.show()
 
 
 def animate() -> None:
@@ -152,5 +201,6 @@ def animate() -> None:
 
 if __name__ == "__main__":
     optimize()
+    # plot_convergence()
     # optimize_parallel()
     # animate()
