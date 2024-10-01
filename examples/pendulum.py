@@ -21,14 +21,14 @@ def optimize() -> None:
 
     # Set the solver options
     options = SolverOptions(
-        num_iters=500,
+        num_iters=50_000,
         alpha=0.01,
-        mu=10.0,
-        rho=0.01,
+        mu=1.0,
+        rho=0.001,
         gradient_method="autodiff",
         sigma=0.01,
         num_samples=128,
-        method="bfgs",
+        method="diffusion",
         initial_noise_level=0.1,
     )
 
@@ -48,12 +48,13 @@ def optimize() -> None:
     plt.xlabel("Time (s)")
     plt.ylabel("Control Torque (Nm)")
 
+    plt.tight_layout()
     plt.show()
 
 
 def optimize_parallel() -> None:
     """Solve a bunch of swingups from different initial conditions."""
-    N = 100  # number of parallel problems to solve
+    N = 1024  # number of parallel problems to solve
 
     # Sample a bunch of initial states
     rng = jax.random.PRNGKey(0)
@@ -102,7 +103,7 @@ def animate() -> None:
         alpha=0.01,
         mu=10.0,
         rho=0.01,
-        gradient_method="sampling",
+        gradient_method="autodiff",
         sigma=0.01,
         num_samples=128,
         method="diffusion",
