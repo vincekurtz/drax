@@ -14,6 +14,12 @@ from matplotlib.animation import FuncAnimation
 from drax.solver import SolverOptions, make_warm_start, solve, solve_verbose
 from drax.systems.pendulum import PendulumSwingup
 
+# Don't use type 3 fonts
+plt.rcParams["pdf.fonttype"] = 42
+plt.rcParams["ps.fonttype"] = 42
+plt.rc("text", usetex=True)
+plt.rc("font", family="serif")
+
 
 def optimize() -> None:
     """Solve the swingup problem and print the solution."""
@@ -200,7 +206,7 @@ def animate() -> None:
 
 
 if __name__ == "__main__":
-    optimize()
+    # optimize()
     # plot_convergence()
-    # optimize_parallel()
+    optimize_parallel()
     # animate()

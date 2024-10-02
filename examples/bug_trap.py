@@ -8,7 +8,7 @@ if __name__ == "__main__":
     prob = BugTrap(horizon=50, x_init=jnp.array([-1.0, 0.0, 0.0]))
     options = SolverOptions(
         num_iters=20000,
-        method="diffusion",
+        method="bfgs",
         rho=0.01,
         initial_noise_level=4.0,
         mu=10.0,
@@ -25,5 +25,10 @@ if __name__ == "__main__":
 
     prob.plot_scenario()
     plt.plot(xs[:, 0], xs[:, 1], "o-")
+
+    # axes off
+    plt.gca().get_xaxis().set_ticks([])
+    plt.gca().get_yaxis().set_ticks([])
+
     plt.tight_layout()
     plt.show()
