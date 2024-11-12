@@ -8,7 +8,7 @@ if __name__ == "__main__":
     prob = BugTrap(horizon=50, x_init=jnp.array([-1.0, 0.0, 0.0]))
     options = SolverOptions(
         num_iters=20000,
-        method="bfgs",
+        method="diffusion",
         rho=0.01,
         initial_noise_level=4.0,
         mu=10.0,
